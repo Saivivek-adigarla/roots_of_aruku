@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Mail, Phone, Package, MapPin, Heart, LogOut, Edit2, Save } from 'lucide-react';
+import { User, Mail, Phone, Package, MapPin, Heart, LogOut, CreditCard as Edit2, Save } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase/config';
