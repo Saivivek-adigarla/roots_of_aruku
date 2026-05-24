@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CreditCard, Truck, MapPin, Check, Loader2, Wallet, Package } from 'lucide-react';
+import { CreditCard, Truck, MapPin, Check, Loader2, Wallet, Package, Shield, AlertTriangle } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { getDeliveryCharge, generateOrderId } from '../utils/helpers';
@@ -8,6 +8,19 @@ import type { Address } from '../components/AddressForm';
 import AddressForm from '../components/AddressForm';
 import { loadRazorpay } from '../utils/razorpay';
 import toast from 'react-hot-toast';
+import {
+  isValidName,
+  isValidPhone,
+  isValidPincode,
+  isValidPrice,
+  isValidQuantity,
+  sanitizeHtml,
+  checkRateLimit,
+  secureStorage,
+  generateCsrfToken,
+  validateCsrfToken,
+  generateSecureId,
+} from '../utils/security';
 
 export default function Checkout() {
   const { items, total, discount, clearCart } = useCartStore();
@@ -19,29 +32,117 @@ export default function Checkout() {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<'razorpay' | 'cod'>('razorpay');
   const [loading, setLoading] = useState(false);
+  const [csrfToken, setCsrfToken] = useState('');
 
   const subtotal = total();
   const discountAmt = discount();
   const deliveryCharge = getDeliveryCharge(subtotal);
   const grandTotal = subtotal + deliveryCharge;
 
+  useEffect(() => {
+    setCsrfToken(generateCsrfToken());
+    secureStorage.set('checkout_csrf', csrfToken);
+
+    // Load saved addresses
+    const savedAddresses = secureStorage.get<Address[]>('addresses');
+    if (savedAddresses) {
+      setAddresses(savedAddresses);
+    }
+  }, []);
+
+  // Validate cart items data integrity
+  const validateCartItems = useCallback(() => {
+    for (const item of items) {
+      if (!isValidPrice(item.product.offerPrice) || !isValidPrice(item.product.mrp)) {
+        toast.error('Invalid product price detected');
+        return false;
+      }
+      if (!isValidQuantity(item.qty)) {
+        toast.error('Invalid quantity detected');
+        return false;
+      }
+      if (!item.product.name || !item.product.id) {
+        toast.error('Invalid product data detected');
+        return false;
+      }
+    }
+    return true;
+  }, [items]);
+
   const handleAddressSave = (addr: Address) => {
-    setAddresses(prev => {
-      const existing = prev.find(a => a.id === addr.id);
-      return existing ? prev.map(a => a.id === addr.id ? addr : a) : [...prev, addr];
+    // Validate address data
+    if (!isValidName(addr.name)) {
+      toast.error('Invalid name format');
+      return;
+    }
+    if (!isValidPhone(addr.phone)) {
+      toast.error('Invalid phone number');
+      return;
+    }
+    if (!isValidPincode(addr.pincode)) {
+      toast.error('Invalid pincode');
+      return;
+    }
+
+    // Sanitize address data
+    const sanitizedAddress: Address = {
+      ...addr,
+      name: sanitizeHtml(addr.name),
+      address: sanitizeHtml(addr.address),
+      landmark: addr.landmark ? sanitizeHtml(addr.landmark) : '',
+    };
+
+    setAddresses((prev) => {
+      const existing = prev.find((a) => a.id === addr.id);
+      const updated = existing ? prev.map((a) => (a.id === addr.id ? sanitizedAddress : a)) : [...prev, sanitizedAddress];
+      secureStorage.set('addresses', updated);
+      return updated;
     });
-    setSelectedAddress(addr);
+    setSelectedAddress(sanitizedAddress);
     setShowAddressForm(false);
     setStep(2);
   };
 
-  const handlePayment = async () => {
+  const validatePayment = async (): Promise<boolean> => {
+    // Check rate limit
+    const rateCheck = checkRateLimit('checkout_payment', 5, 300000);
+    if (!rateCheck.allowed) {
+      toast.error('Too many payment attempts. Please wait before trying again.');
+      return false;
+    }
+
+    // Validate CSRF
+    const storedToken = secureStorage.get<string>('checkout_csrf');
+    if (!validateCsrfToken(csrfToken, storedToken || '')) {
+      toast.error('Security validation failed. Please refresh the page.');
+      return false;
+    }
+
+    // Validate cart
+    if (!validateCartItems()) return false;
+
+    // Validate address
     if (!selectedAddress) {
       toast.error('Select delivery address');
-      return;
+      return false;
     }
+
+    // Validate grand total matches expected
+    const expectedTotal = items.reduce((sum, item) => sum + item.product.offerPrice * item.qty, 0) + deliveryCharge;
+    if (grandTotal !== expectedTotal) {
+      toast.error('Price mismatch detected. Please refresh and try again.');
+      return false;
+    }
+
+    return true;
+  };
+
+  const handlePayment = async () => {
+    if (!(await validatePayment())) return;
+
     setLoading(true);
-    const orderId = generateOrderId();
+    const orderId = generateSecureId('ROA');
+
     if (paymentMethod === 'razorpay') {
       try {
         await loadRazorpay();
@@ -52,41 +153,73 @@ export default function Checkout() {
           name: 'Roots of Araku',
           description: 'Order Payment',
           order_id: '',
-          handler: () => {
+          handler: (response: { razorpay_payment_id: string }) => {
+            // Validate payment response
+            if (!response.razorpay_payment_id) {
+              toast.error('Payment verification failed');
+              return;
+            }
+
             clearCart();
-            localStorage.setItem('lastOrder', JSON.stringify({
+            secureStorage.set('lastOrder', {
               orderId,
-              items,
+              items: items.map((item) => ({
+                product: {
+                  id: item.product.id,
+                  name: sanitizeHtml(item.product.name),
+                  weight: item.product.weight,
+                  images: item.product.images,
+                  offerPrice: item.product.offerPrice,
+                },
+                qty: item.qty,
+              })),
               total: grandTotal,
               address: selectedAddress,
               status: 'paid',
+              paymentId: response.razorpay_payment_id,
               createdAt: new Date().toISOString(),
-            }));
+            });
+            secureStorage.remove('checkout_csrf');
             navigate(`/order-success?id=${orderId}`);
           },
           prefill: {
-            name: selectedAddress.name,
-            email: user?.email,
-            contact: selectedAddress.phone,
+            name: sanitizeHtml(selectedAddress.name),
+            email: user?.email || '',
+            contact: selectedAddress.phone.replace(/\D/g, '').slice(-10),
+          },
+          theme: {
+            color: '#6B1A1A',
           },
         };
-        const rzp = new (window as { Razorpay: new (opts: unknown) => { open: () => void } }).Razorpay(options);
+
+        const rzp = new (window as { Razorpay: new (opts: typeof options) => { open: () => void } }).Razorpay(options);
         rzp.open();
       } catch (err) {
-        toast.error('Payment initialization failed');
+        toast.error('Payment initialization failed. Please try again.');
       } finally {
         setLoading(false);
       }
     } else {
+      // COD payment
       clearCart();
-      localStorage.setItem('lastOrder', JSON.stringify({
+      secureStorage.set('lastOrder', {
         orderId,
-        items,
+        items: items.map((item) => ({
+          product: {
+            id: item.product.id,
+            name: sanitizeHtml(item.product.name),
+            weight: item.product.weight,
+            images: item.product.images,
+            offerPrice: item.product.offerPrice,
+          },
+          qty: item.qty,
+        })),
         total: grandTotal,
         address: selectedAddress,
         status: 'cod',
         createdAt: new Date().toISOString(),
-      }));
+      });
+      secureStorage.remove('checkout_csrf');
       setLoading(false);
       navigate(`/order-success?id=${orderId}&cod=true`);
     }
@@ -107,6 +240,11 @@ export default function Checkout() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="flex items-center gap-2 mb-6">
+        <Shield size={20} className="text-green-600" />
+        <span className="text-sm text-gray-600">Secure checkout with 256-bit encryption</span>
+      </div>
+
       <h1 className="text-2xl font-bold text-gray-800 mb-6">Checkout</h1>
 
       <div className="flex items-center justify-center gap-4 mb-8">
@@ -153,9 +291,9 @@ export default function Checkout() {
                       />
                       <div className="flex justify-between">
                         <div>
-                          <p className="font-semibold">{addr.name}</p>
-                          <p className="text-gray-600 text-sm">{addr.address}</p>
-                          <p className="text-gray-600 text-sm">{addr.city}, {addr.state} - {addr.pincode}</p>
+                          <p className="font-semibold">{sanitizeHtml(addr.name)}</p>
+                          <p className="text-gray-600 text-sm">{sanitizeHtml(addr.address)}</p>
+                          <p className="text-gray-600 text-sm">{sanitizeHtml(addr.city)}, {sanitizeHtml(addr.state)} - {addr.pincode}</p>
                           <p className="text-gray-500 text-sm">{addr.phone}</p>
                         </div>
                         {selectedAddress?.id === addr.id && (
@@ -223,9 +361,9 @@ export default function Checkout() {
             <div className="space-y-6">
               <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                 <h2 className="font-semibold text-lg mb-3">Delivery Address</h2>
-                <p className="text-gray-700">{selectedAddress?.name}</p>
-                <p className="text-gray-600">{selectedAddress?.address}</p>
-                <p className="text-gray-600">{selectedAddress?.city}, {selectedAddress?.state} - {selectedAddress?.pincode}</p>
+                <p className="text-gray-700">{selectedAddress && sanitizeHtml(selectedAddress.name)}</p>
+                <p className="text-gray-600">{selectedAddress && sanitizeHtml(selectedAddress.address)}</p>
+                <p className="text-gray-600">{selectedAddress && `${sanitizeHtml(selectedAddress.city)}, ${sanitizeHtml(selectedAddress.state)} - ${selectedAddress.pincode}`}</p>
                 <p className="text-gray-500">{selectedAddress?.phone}</p>
               </div>
               <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
@@ -239,7 +377,7 @@ export default function Checkout() {
                     <div key={item.product.id} className="flex gap-4">
                       <img src={item.product.images?.[0]} alt={item.product.name} className="w-16 h-16 object-cover rounded" />
                       <div className="flex-1">
-                        <p className="font-medium">{item.product.name}</p>
+                        <p className="font-medium">{sanitizeHtml(item.product.name)}</p>
                         <p className="text-sm text-gray-500">{item.product.weight} x {item.qty}</p>
                       </div>
                       <p className="font-semibold">₹{item.product.offerPrice * item.qty}</p>
