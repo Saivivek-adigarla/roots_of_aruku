@@ -1,71 +1,80 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { secureStorage } from '../utils/security';
-
-export interface UserProfile {
-  uid: string;
-  name: string;
-  phone: string;
-  email: string;
-  photoURL?: string;
-  isAdmin: boolean;
-}
+import { persist } from 'zustand/middleware';
+import { User } from '../types';
 
 interface AuthStore {
-  user: UserProfile | null;
-  setUser: (user: UserProfile | null) => void;
-  isAdmin: () => boolean;
+  user: User | null;
+  isLoading: boolean;
+  isAuthenticated: boolean;
+  error: string | null;
+  
+  // Auth actions
+  setUser: (user: User | null) => void;
+  setLoading: (loading: boolean) => void;
+  setError: (error: string | null) => void;
+  logout: () => void;
+  
+  // Session persistence
+  restoreSession: () => Promise<void>;
   clearSession: () => void;
 }
-
-// Custom storage adapter using our secure storage
-const secureStorageAdapter = {
-  getItem: (name: string): string | null => {
-    const value = secureStorage.get<UserProfile>(name);
-    return value ? JSON.stringify({ state: { user: value }, version: 0 }) : null;
-  },
-  setItem: (name: string, value: string): void => {
-    try {
-      const parsed = JSON.parse(value);
-      if (parsed?.state?.user) {
-        secureStorage.set(name, parsed.state.user);
-      }
-    } catch {
-      // Ignore parse errors
-    }
-  },
-  removeItem: (name: string): void => {
-    secureStorage.remove(name);
-  },
-};
 
 export const useAuthStore = create<AuthStore>()(
   persist(
     (set, get) => ({
       user: null,
+      isLoading: false,
+      isAuthenticated: false,
+      error: null,
+      
       setUser: (user) => {
-        set({ user });
-        if (user) {
-          secureStorage.set('session_timestamp', Date.now());
-        } else {
-          secureStorage.remove('session_timestamp');
+        set({
+          user,
+          isAuthenticated: !!user,
+          error: null,
+        });
+      },
+      
+      setLoading: (loading) => set({ isLoading: loading }),
+      
+      setError: (error) => set({ error }),
+      
+      logout: () => {
+        set({
+          user: null,
+          isAuthenticated: false,
+          error: null,
+        });
+        // Clear any auth tokens
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('refreshToken');
+      },
+      
+      restoreSession: async () => {
+        try {
+          const token = localStorage.getItem('authToken');
+          if (token) {
+            set({ isLoading: true });
+            // Verify token with backend
+            set({ isLoading: false });
+          }
+        } catch (error) {
+          set({ error: 'Session restore failed', isLoading: false });
         }
       },
-      isAdmin: () => {
-        const user = get().user;
-        const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
-        return user?.isAdmin === true || user?.email === adminEmail;
-      },
+      
       clearSession: () => {
-        set({ user: null });
-        secureStorage.remove('session_timestamp');
-        secureStorage.remove('roa-auth');
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('refreshToken');
+        set({
+          user: null,
+          isAuthenticated: false,
+        });
       },
     }),
     {
-      name: 'roa-auth',
-      storage: createJSONStorage(() => secureStorageAdapter),
-      partialize: (state) => ({ user: state.user }),
+      name: 'auth-store',
+      version: 1,
     }
   )
 );
