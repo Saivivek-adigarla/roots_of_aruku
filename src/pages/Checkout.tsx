@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CreditCard, Truck, MapPin, Check, Loader2, Wallet, Package, Shield, AlertTriangle } from 'lucide-react';
+import { CreditCard, Truck, MapPin, Check, Loader2, Wallet, Package, Shield } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
-import { getDeliveryCharge, generateOrderId } from '../utils/helpers';
-import type { Address } from '../components/AddressForm';
+import { getDeliveryCharge, DELIVERY_FREE_THRESHOLD } from '../utils/helpers';
+import type { Address } from '../types';
 import AddressForm from '../components/AddressForm';
 import { loadRazorpay } from '../utils/razorpay';
 import toast from 'react-hot-toast';
@@ -12,8 +12,6 @@ import {
   isValidName,
   isValidPhone,
   isValidPincode,
-  isValidPrice,
-  isValidQuantity,
   sanitizeHtml,
   checkRateLimit,
   secureStorage,
@@ -23,7 +21,7 @@ import {
 } from '../utils/security';
 
 export default function Checkout() {
-  const { items, total, discount, clearCart } = useCartStore();
+  const { items, clearCart } = useCartStore();
   const user = useAuthStore((s) => s.user);
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
@@ -34,35 +32,26 @@ export default function Checkout() {
   const [loading, setLoading] = useState(false);
   const [csrfToken, setCsrfToken] = useState('');
 
-  const subtotal = total();
-  const discountAmt = discount();
+  const subtotal = items.reduce((sum, item) => sum + item.product.offerPrice * item.qty, 0);
+  const discountAmt = items.reduce((sum, item) => sum + (item.product.mrp - item.product.offerPrice) * item.qty, 0);
   const deliveryCharge = getDeliveryCharge(subtotal);
   const grandTotal = subtotal + deliveryCharge;
 
   useEffect(() => {
     setCsrfToken(generateCsrfToken());
     secureStorage.set('checkout_csrf', csrfToken);
-
-    // Load saved addresses
     const savedAddresses = secureStorage.get<Address[]>('addresses');
-    if (savedAddresses) {
-      setAddresses(savedAddresses);
-    }
+    if (savedAddresses) setAddresses(savedAddresses);
   }, []);
 
-  // Validate cart items data integrity
   const validateCartItems = useCallback(() => {
     for (const item of items) {
-      if (!isValidPrice(item.product.offerPrice) || !isValidPrice(item.product.mrp)) {
+      if (item.product.offerPrice < 0 || item.product.mrp < 0) {
         toast.error('Invalid product price detected');
         return false;
       }
-      if (!isValidQuantity(item.qty)) {
+      if (item.qty <= 0 || item.qty > 100) {
         toast.error('Invalid quantity detected');
-        return false;
-      }
-      if (!item.product.name || !item.product.id) {
-        toast.error('Invalid product data detected');
         return false;
       }
     }
@@ -70,21 +59,10 @@ export default function Checkout() {
   }, [items]);
 
   const handleAddressSave = (addr: Address) => {
-    // Validate address data
-    if (!isValidName(addr.name)) {
-      toast.error('Invalid name format');
-      return;
-    }
-    if (!isValidPhone(addr.phone)) {
-      toast.error('Invalid phone number');
-      return;
-    }
-    if (!isValidPincode(addr.pincode)) {
-      toast.error('Invalid pincode');
-      return;
-    }
+    if (!isValidName(addr.name)) { toast.error('Invalid name'); return; }
+    if (!isValidPhone(addr.phone)) { toast.error('Invalid phone'); return; }
+    if (!isValidPincode(addr.pincode)) { toast.error('Invalid pincode'); return; }
 
-    // Sanitize address data
     const sanitizedAddress: Address = {
       ...addr,
       name: sanitizeHtml(addr.name),
@@ -104,35 +82,16 @@ export default function Checkout() {
   };
 
   const validatePayment = async (): Promise<boolean> => {
-    // Check rate limit
     const rateCheck = checkRateLimit('checkout_payment', 5, 300000);
-    if (!rateCheck.allowed) {
-      toast.error('Too many payment attempts. Please wait before trying again.');
-      return false;
-    }
+    if (!rateCheck.allowed) { toast.error('Too many payment attempts'); return false; }
 
-    // Validate CSRF
     const storedToken = secureStorage.get<string>('checkout_csrf');
-    if (!validateCsrfToken(csrfToken, storedToken || '')) {
-      toast.error('Security validation failed. Please refresh the page.');
-      return false;
-    }
-
-    // Validate cart
+    if (!validateCsrfToken(csrfToken, storedToken || '')) { toast.error('Security validation failed'); return false; }
     if (!validateCartItems()) return false;
+    if (!selectedAddress) { toast.error('Select delivery address'); return false; }
 
-    // Validate address
-    if (!selectedAddress) {
-      toast.error('Select delivery address');
-      return false;
-    }
-
-    // Validate grand total matches expected
     const expectedTotal = items.reduce((sum, item) => sum + item.product.offerPrice * item.qty, 0) + deliveryCharge;
-    if (grandTotal !== expectedTotal) {
-      toast.error('Price mismatch detected. Please refresh and try again.');
-      return false;
-    }
+    if (grandTotal !== expectedTotal) { toast.error('Price mismatch detected'); return false; }
 
     return true;
   };
@@ -152,27 +111,12 @@ export default function Checkout() {
           currency: 'INR',
           name: 'Roots of Araku',
           description: 'Order Payment',
-          order_id: '',
           handler: (response: { razorpay_payment_id: string }) => {
-            // Validate payment response
-            if (!response.razorpay_payment_id) {
-              toast.error('Payment verification failed');
-              return;
-            }
-
+            if (!response.razorpay_payment_id) { toast.error('Payment verification failed'); return; }
             clearCart();
             secureStorage.set('lastOrder', {
               orderId,
-              items: items.map((item) => ({
-                product: {
-                  id: item.product.id,
-                  name: sanitizeHtml(item.product.name),
-                  weight: item.product.weight,
-                  images: item.product.images,
-                  offerPrice: item.product.offerPrice,
-                },
-                qty: item.qty,
-              })),
+              items: items.map((item) => ({ product: { id: item.product.id, name: sanitizeHtml(item.product.name), weight: item.product.weight, images: item.product.images, offerPrice: item.product.offerPrice }, qty: item.qty })),
               total: grandTotal,
               address: selectedAddress,
               status: 'paid',
@@ -182,38 +126,18 @@ export default function Checkout() {
             secureStorage.remove('checkout_csrf');
             navigate(`/order-success?id=${orderId}`);
           },
-          prefill: {
-            name: sanitizeHtml(selectedAddress.name),
-            email: user?.email || '',
-            contact: selectedAddress.phone.replace(/\D/g, '').slice(-10),
-          },
-          theme: {
-            color: '#6B1A1A',
-          },
+          prefill: { name: sanitizeHtml(selectedAddress!.name), email: user?.email || '', contact: selectedAddress!.phone },
+          theme: { color: '#6B1A1A' },
         };
-
         const rzp = new (window as { Razorpay: new (opts: typeof options) => { open: () => void } }).Razorpay(options);
         rzp.open();
-      } catch (err) {
-        toast.error('Payment initialization failed. Please try again.');
-      } finally {
-        setLoading(false);
-      }
+      } catch { toast.error('Payment initialization failed'); }
+      finally { setLoading(false); }
     } else {
-      // COD payment
       clearCart();
       secureStorage.set('lastOrder', {
         orderId,
-        items: items.map((item) => ({
-          product: {
-            id: item.product.id,
-            name: sanitizeHtml(item.product.name),
-            weight: item.product.weight,
-            images: item.product.images,
-            offerPrice: item.product.offerPrice,
-          },
-          qty: item.qty,
-        })),
+        items: items.map((item) => ({ product: { id: item.product.id, name: sanitizeHtml(item.product.name), weight: item.product.weight, images: item.product.images, offerPrice: item.product.offerPrice }, qty: item.qty })),
         total: grandTotal,
         address: selectedAddress,
         status: 'cod',
@@ -230,10 +154,7 @@ export default function Checkout() {
       <div className="max-w-7xl mx-auto px-4 py-16 text-center">
         <Package size={64} className="text-gray-300 mx-auto mb-4" />
         <h2 className="text-xl font-semibold text-gray-800 mb-2">Your cart is empty</h2>
-        <p className="text-gray-500 mb-6">Add items to checkout</p>
-        <Link to="/products" className="inline-block bg-maroon-700 text-white px-8 py-3 rounded-full font-semibold">
-          Browse Products
-        </Link>
+        <Link to="/products" className="inline-block bg-maroon-700 text-white px-8 py-3 rounded-full font-semibold">Browse Products</Link>
       </div>
     );
   }
@@ -244,19 +165,12 @@ export default function Checkout() {
         <Shield size={20} className="text-green-600" />
         <span className="text-sm text-gray-600">Secure checkout with 256-bit encryption</span>
       </div>
-
       <h1 className="text-2xl font-bold text-gray-800 mb-6">Checkout</h1>
 
       <div className="flex items-center justify-center gap-4 mb-8">
-        {[
-          { num: 1, label: 'Address', icon: MapPin },
-          { num: 2, label: 'Payment', icon: CreditCard },
-          { num: 3, label: 'Confirm', icon: Check },
-        ].map((s) => (
+        {[{ num: 1, label: 'Address', Icon: MapPin }, { num: 2, label: 'Payment', Icon: CreditCard }, { num: 3, label: 'Confirm', Icon: Check }].map((s) => (
           <div key={s.num} className={`flex items-center gap-2 ${step >= s.num ? 'text-maroon-700' : 'text-gray-400'}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step >= s.num ? 'bg-maroon-700 text-white' : 'bg-gray-200'}`}>
-              <s.icon size={16} />
-            </div>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step >= s.num ? 'bg-maroon-700 text-white' : 'bg-gray-200'}`}><s.Icon size={16} /></div>
             <span className="text-sm font-medium hidden sm:inline">{s.label}</span>
             {s.num < 3 && <div className={`w-12 h-0.5 ${step > s.num ? 'bg-maroon-700' : 'bg-gray-200'}`} />}
           </div>
@@ -269,26 +183,15 @@ export default function Checkout() {
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-semibold text-lg">Select Delivery Address</h2>
-                <button onClick={() => setShowAddressForm(true)} className="text-maroon-700 font-medium hover:underline">
-                  + Add New
-                </button>
+                <button onClick={() => setShowAddressForm(true)} className="text-maroon-700 font-medium hover:underline">+ Add New</button>
               </div>
               {showAddressForm ? (
                 <AddressForm onSave={handleAddressSave} onCancel={() => setShowAddressForm(false)} />
               ) : addresses.length > 0 ? (
                 <div className="grid gap-4">
                   {addresses.map((addr) => (
-                    <label
-                      key={addr.id}
-                      className={`border-2 rounded-xl p-4 cursor-pointer transition ${selectedAddress?.id === addr.id ? 'border-maroon-700 bg-maroon-50' : 'border-gray-200 hover:border-gray-300'}`}
-                    >
-                      <input
-                        type="radio"
-                        name="address"
-                        checked={selectedAddress?.id === addr.id}
-                        onChange={() => setSelectedAddress(addr)}
-                        className="sr-only"
-                      />
+                    <label key={addr.id} className={`border-2 rounded-xl p-4 cursor-pointer transition ${selectedAddress?.id === addr.id ? 'border-maroon-700 bg-maroon-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                      <input type="radio" name="address" checked={selectedAddress?.id === addr.id} onChange={() => setSelectedAddress(addr)} className="sr-only" />
                       <div className="flex justify-between">
                         <div>
                           <p className="font-semibold">{sanitizeHtml(addr.name)}</p>
@@ -296,11 +199,7 @@ export default function Checkout() {
                           <p className="text-gray-600 text-sm">{sanitizeHtml(addr.city)}, {sanitizeHtml(addr.state)} - {addr.pincode}</p>
                           <p className="text-gray-500 text-sm">{addr.phone}</p>
                         </div>
-                        {selectedAddress?.id === addr.id && (
-                          <div className="w-5 h-5 bg-maroon-700 rounded-full flex items-center justify-center">
-                            <Check size={12} className="text-white" />
-                          </div>
-                        )}
+                        {selectedAddress?.id === addr.id && <div className="w-5 h-5 bg-maroon-700 rounded-full flex items-center justify-center"><Check size={12} className="text-white" /></div>}
                       </div>
                     </label>
                   ))}
@@ -309,19 +208,10 @@ export default function Checkout() {
                 <div className="text-center py-8 bg-gray-50 rounded-xl">
                   <MapPin size={40} className="text-gray-300 mx-auto mb-3" />
                   <p className="text-gray-600 mb-4">No saved addresses</p>
-                  <button onClick={() => setShowAddressForm(true)} className="bg-maroon-700 text-white px-6 py-2 rounded-lg font-medium">
-                    Add Address
-                  </button>
+                  <button onClick={() => setShowAddressForm(true)} className="bg-maroon-700 text-white px-6 py-2 rounded-lg font-medium">Add Address</button>
                 </div>
               )}
-              {selectedAddress && (
-                <button
-                  onClick={() => setStep(2)}
-                  className="mt-6 w-full bg-maroon-700 text-white py-3 rounded-lg font-semibold hover:bg-maroon-800"
-                >
-                  Continue to Payment
-                </button>
-              )}
+              {selectedAddress && <button onClick={() => setStep(2)} className="mt-6 w-full bg-maroon-700 text-white py-3 rounded-lg font-semibold hover:bg-maroon-800">Continue to Payment</button>}
             </div>
           )}
 
@@ -332,39 +222,29 @@ export default function Checkout() {
                 <label className={`border-2 rounded-xl p-4 cursor-pointer flex items-center gap-4 ${paymentMethod === 'razorpay' ? 'border-maroon-700 bg-maroon-50' : 'border-gray-200'}`}>
                   <input type="radio" checked={paymentMethod === 'razorpay'} onChange={() => setPaymentMethod('razorpay')} className="accent-maroon-700" />
                   <Wallet size={24} className="text-maroon-700" />
-                  <div>
-                    <p className="font-semibold">Pay Online</p>
-                    <p className="text-sm text-gray-500">UPI, Cards, Net Banking</p>
-                  </div>
+                  <div><p className="font-semibold">Pay Online</p><p className="text-sm text-gray-500">UPI, Cards, Net Banking</p></div>
                 </label>
                 <label className={`border-2 rounded-xl p-4 cursor-pointer flex items-center gap-4 ${paymentMethod === 'cod' ? 'border-maroon-700 bg-maroon-50' : 'border-gray-200'}`}>
                   <input type="radio" checked={paymentMethod === 'cod'} onChange={() => setPaymentMethod('cod')} className="accent-maroon-700" />
                   <Truck size={24} className="text-maroon-700" />
-                  <div>
-                    <p className="font-semibold">Cash on Delivery</p>
-                    <p className="text-sm text-gray-500">Pay when you receive</p>
-                  </div>
+                  <div><p className="font-semibold">Cash on Delivery</p><p className="text-sm text-gray-500">Pay when you receive</p></div>
                 </label>
               </div>
               <div className="flex gap-3 mt-6">
-                <button onClick={() => setStep(1)} className="px-6 py-2.5 border border-gray-300 rounded-lg font-medium text-gray-700">
-                  Back
-                </button>
-                <button onClick={() => setStep(3)} className="flex-1 bg-maroon-700 text-white py-3 rounded-lg font-semibold hover:bg-maroon-800">
-                  Review Order
-                </button>
+                <button onClick={() => setStep(1)} className="px-6 py-2.5 border border-gray-300 rounded-lg font-medium text-gray-700">Back</button>
+                <button onClick={() => setStep(3)} className="flex-1 bg-maroon-700 text-white py-3 rounded-lg font-semibold hover:bg-maroon-800">Review Order</button>
               </div>
             </div>
           )}
 
-          {step === 3 && (
+          {step === 3 && selectedAddress && (
             <div className="space-y-6">
               <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                 <h2 className="font-semibold text-lg mb-3">Delivery Address</h2>
-                <p className="text-gray-700">{selectedAddress && sanitizeHtml(selectedAddress.name)}</p>
-                <p className="text-gray-600">{selectedAddress && sanitizeHtml(selectedAddress.address)}</p>
-                <p className="text-gray-600">{selectedAddress && `${sanitizeHtml(selectedAddress.city)}, ${sanitizeHtml(selectedAddress.state)} - ${selectedAddress.pincode}`}</p>
-                <p className="text-gray-500">{selectedAddress?.phone}</p>
+                <p className="text-gray-700">{sanitizeHtml(selectedAddress.name)}</p>
+                <p className="text-gray-600">{sanitizeHtml(selectedAddress.address)}</p>
+                <p className="text-gray-600">{sanitizeHtml(selectedAddress.city)}, {sanitizeHtml(selectedAddress.state)} - {selectedAddress.pincode}</p>
+                <p className="text-gray-500">{selectedAddress.phone}</p>
               </div>
               <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                 <h2 className="font-semibold text-lg mb-3">Payment Method</h2>
@@ -376,24 +256,15 @@ export default function Checkout() {
                   {items.map((item) => (
                     <div key={item.product.id} className="flex gap-4">
                       <img src={item.product.images?.[0]} alt={item.product.name} className="w-16 h-16 object-cover rounded" />
-                      <div className="flex-1">
-                        <p className="font-medium">{sanitizeHtml(item.product.name)}</p>
-                        <p className="text-sm text-gray-500">{item.product.weight} x {item.qty}</p>
-                      </div>
+                      <div className="flex-1"><p className="font-medium">{sanitizeHtml(item.product.name)}</p><p className="text-sm text-gray-500">{item.product.weight} x {item.qty}</p></div>
                       <p className="font-semibold">₹{item.product.offerPrice * item.qty}</p>
                     </div>
                   ))}
                 </div>
               </div>
               <div className="flex gap-3">
-                <button onClick={() => setStep(2)} className="px-6 py-2.5 border border-gray-300 rounded-lg font-medium text-gray-700">
-                  Back
-                </button>
-                <button
-                  onClick={handlePayment}
-                  disabled={loading}
-                  className="flex-1 bg-maroon-700 text-white py-3 rounded-lg font-semibold hover:bg-maroon-800 disabled:opacity-50 flex items-center justify-center gap-2"
-                >
+                <button onClick={() => setStep(2)} className="px-6 py-2.5 border border-gray-300 rounded-lg font-medium text-gray-700">Back</button>
+                <button onClick={handlePayment} disabled={loading} className="flex-1 bg-maroon-700 text-white py-3 rounded-lg font-semibold hover:bg-maroon-800 disabled:opacity-50 flex items-center justify-center gap-2">
                   {loading ? <Loader2 className="animate-spin" size={20} /> : `Pay ₹${grandTotal}`}
                 </button>
               </div>
@@ -405,27 +276,13 @@ export default function Checkout() {
           <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
             <h2 className="font-semibold text-lg mb-4">Order Summary</h2>
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Subtotal ({items.reduce((s, i) => s + i.qty, 0)} items)</span>
-                <span>₹{subtotal}</span>
-              </div>
-              <div className="flex justify-between text-green-600">
-                <span>Discount</span>
-                <span>-₹{discountAmt}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Delivery</span>
-                <span>{deliveryCharge === 0 ? <span className="text-green-600">FREE</span> : `₹${deliveryCharge}`}</span>
-              </div>
-              <div className="border-t pt-2 mt-2 flex justify-between font-bold text-lg">
-                <span>Total</span>
-                <span>₹{grandTotal}</span>
-              </div>
+              <div className="flex justify-between"><span className="text-gray-600">Subtotal ({items.reduce((s, i) => s + i.qty, 0)} items)</span><span>₹{subtotal}</span></div>
+              <div className="flex justify-between text-green-600"><span>Discount</span><span>-₹{discountAmt}</span></div>
+              <div className="flex justify-between"><span className="text-gray-600">Delivery</span><span>{deliveryCharge === 0 ? <span className="text-green-600">FREE</span> : `₹${deliveryCharge}`}</span></div>
+              <div className="border-t pt-2 mt-2 flex justify-between font-bold text-lg"><span>Total</span><span>₹{grandTotal}</span></div>
             </div>
-            {subtotal < 499 && (
-              <div className="bg-gold-100 rounded-lg p-3 mt-4 text-sm">
-                Add ₹{499 - subtotal} more for <span className="font-semibold text-maroon-700">FREE delivery</span>
-              </div>
+            {subtotal < DELIVERY_FREE_THRESHOLD && (
+              <div className="bg-gold-100 rounded-lg p-3 mt-4 text-sm">Add ₹{DELIVERY_FREE_THRESHOLD - subtotal} more for <span className="font-semibold text-maroon-700">FREE delivery</span></div>
             )}
           </div>
         </div>

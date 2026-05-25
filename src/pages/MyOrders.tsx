@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, Eye, ChevronRight, Calendar, MapPin, CreditCard, ShoppingBag } from 'lucide-react';
+import { Eye, ChevronRight, Calendar, MapPin, CreditCard, ShoppingBag } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
 

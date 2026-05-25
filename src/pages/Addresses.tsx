@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, MapPin, CreditCard as Edit2, Trash2, Check } from 'lucide-react';
+import { Plus, MapPin, CreditCard as Edit2, Trash2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
 import AddressForm, { type Address } from '../components/AddressForm';

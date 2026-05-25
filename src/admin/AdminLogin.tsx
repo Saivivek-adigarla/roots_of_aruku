@@ -5,6 +5,7 @@ import { auth } from '../firebase/config';
 import { useAuthStore } from '../store/authStore';
 import { Lock, Mail, Loader2, ShieldAlert } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { isValidEmail, sanitizeHtml, checkRateLimit } from '../utils/security';
 
 export default function AdminLogin() {
   const [email, setEmail] = useState('');
@@ -19,19 +20,30 @@ export default function AdminLogin() {
       toast.error('Enter email and password');
       return;
     }
+    if (!isValidEmail(email)) {
+      toast.error('Invalid email format');
+      return;
+    }
+    const rateCheck = checkRateLimit('admin_login', 3, 300000);
+    if (!rateCheck.allowed) {
+      toast.error('Too many attempts. Try again later.');
+      return;
+    }
+
     setLoading(true);
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const isAdmin = email === import.meta.env.VITE_ADMIN_EMAIL;
-      if (!isAdmin) {
+      const sanitizedEmail = email.toLowerCase().trim();
+      const userCredential = await signInWithEmailAndPassword(auth, sanitizedEmail, password);
+      const isAdminEmail = sanitizedEmail === import.meta.env.VITE_ADMIN_EMAIL;
+      if (!isAdminEmail) {
         toast.error('Access denied. Admin only.');
         setLoading(false);
         return;
       }
       setUser({
-        uid: userCredential.user.uid,
-        name: userCredential.user.displayName || 'Admin',
-        email: userCredential.user.email || email,
+        id: userCredential.user.uid,
+        name: sanitizeHtml(userCredential.user.displayName || 'Admin'),
+        email: userCredential.user.email || sanitizedEmail,
         phone: '',
         isAdmin: true,
       });
@@ -39,7 +51,11 @@ export default function AdminLogin() {
       navigate('/admin');
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Login failed';
-      toast.error(message);
+      if (message.includes('user-not-found') || message.includes('wrong-password')) {
+        toast.error('Invalid credentials');
+      } else {
+        toast.error('Login failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -60,37 +76,19 @@ export default function AdminLogin() {
           <form onSubmit={handleLogin} className="p-8 space-y-4">
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Admin email"
-                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-maroon-500 focus:border-transparent outline-none"
-              />
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Admin email" autoComplete="email" className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-maroon-500 focus:border-transparent outline-none" />
             </div>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password"
-                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-maroon-500 focus:border-transparent outline-none"
-              />
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" autoComplete="current-password" className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-maroon-500 focus:border-transparent outline-none" />
             </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-maroon-700 text-white py-3 rounded-lg font-semibold hover:bg-maroon-800 disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {loading ? <Loader2 className="animate-spin" size={20} /> : <>Sign In to Admin</>}
+            <button type="submit" disabled={loading} className="w-full bg-maroon-700 text-white py-3 rounded-lg font-semibold hover:bg-maroon-800 disabled:opacity-50 flex items-center justify-center gap-2">
+              {loading ? <Loader2 className="animate-spin" size={20} /> : 'Sign In to Admin'}
             </button>
           </form>
 
           <div className="px-8 pb-6 text-center">
-            <a href="/" className="text-sm text-gray-500 hover:text-maroon-700">
-              Back to Store
-            </a>
+            <a href="/" className="text-sm text-gray-500 hover:text-maroon-700">Back to Store</a>
           </div>
         </div>
       </div>

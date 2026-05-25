@@ -4,12 +4,13 @@ import { useWishlistStore } from '../store/wishlistStore';
 import { useCartStore } from '../store/cartStore';
 import { discountPct } from '../utils/helpers';
 import toast from 'react-hot-toast';
+import { Product } from '../types';
 
 export default function Wishlist() {
   const { items, remove } = useWishlistStore();
   const addItem = useCartStore((s) => s.addItem);
 
-  const handleAddToCart = (product: typeof items[0]) => {
+  const handleAddToCart = (product: Product) => {
     addItem(product);
     toast.success('Added to cart');
   };
@@ -40,7 +41,7 @@ export default function Wishlist() {
         {items.map((product) => (
           <div key={product.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden group">
             <Link to={`/product/${product.id}`}>
-              <img src={product.images?.[0] || 'https://images.pexels.com/photos/894695/pexels-photo-894695.jpeg'} alt={product.name} className="w-full h-40 object-cover" />
+              <img src={product.images?.[0] || 'https://images.pexels.com/photos/894695/pexels-photo-894695.jpeg?w=400'} alt={product.name} className="w-full h-40 object-cover" />
             </Link>
             <div className="p-4">
               <Link to={`/product/${product.id}`}>

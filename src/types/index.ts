@@ -1,28 +1,22 @@
 // User & Auth Types
 export interface User {
-  id: string;
+  uid: string;
+  name: string;
   email: string;
-  phoneNumber?: string;
-  displayName?: string;
+  phone: string;
   photoURL?: string;
-  addresses: Address[];
-  createdAt: Date;
-  updatedAt: Date;
-  isAdmin?: boolean;
+  isAdmin: boolean;
 }
 
 export interface Address {
   id: string;
-  userId: string;
-  type: 'home' | 'work' | 'other';
-  addressLine1: string;
-  addressLine2?: string;
+  name: string;
+  phone: string;
+  address: string;
   city: string;
   state: string;
-  postalCode: string;
-  phoneNumber: string;
-  isDefault: boolean;
-  createdAt: Date;
+  pincode: string;
+  landmark?: string;
 }
 
 // Product Types
@@ -30,95 +24,48 @@ export interface Product {
   id: string;
   name: string;
   description: string;
-  category: string;
-  price: number;
-  originalPrice?: number;
-  rating: number;
-  reviews: number;
-  image: string;
+  category: 'coffee' | 'turmeric' | 'honey' | 'spices' | 'other';
+  weight: string;
+  mrp: number;
+  sellingPrice: number;
+  offerPrice: number;
+  benefits: string[];
+  status: 'active' | 'outofstock';
+  showOfferBadge: boolean;
+  featured: boolean;
   images: string[];
-  stock: number;
-  weight?: string;
-  specifications?: Record<string, string>;
-  badge?: 'flash-sale' | 'trending' | 'new' | 'bestseller';
-  deliveryDays?: number;
-  tags?: string[];
-  createdAt: Date;
-  updatedAt: Date;
+  emoji: string;
+  createdAt?: unknown;
 }
 
-// Cart Types - CRITICAL FIX: Store complete product object
+// Cart Types
 export interface CartItem {
-  productId: string;
-  product: Product; // STORE COMPLETE PRODUCT OBJECT
-  quantity: number;
-  addedAt: Date;
-}
-
-export interface Cart {
-  items: CartItem[];
-  subtotal: number;
-  tax: number;
-  discount: number;
-  total: number;
-  couponCode?: string;
-  lastUpdated: Date;
+  product: Product;
+  qty: number;
 }
 
 // Order Types
+export interface OrderItem {
+  product: { id: string; name: string; weight: string; images?: string[]; offerPrice: number };
+  qty: number;
+}
+
 export interface Order {
-  id: string;
-  userId: string;
-  items: CartItem[];
-  subtotal: number;
-  tax: number;
-  discount: number;
-  shippingCharges: number;
-  total: number;
-  deliveryAddress: Address;
-  paymentMethod: PaymentMethod;
-  paymentStatus: 'pending' | 'completed' | 'failed' | 'refunded';
-  orderStatus: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
   orderId: string;
-  transactionId?: string;
-  qrCode?: string;
-  createdAt: Date;
-  updatedAt: Date;
-  expectedDelivery?: Date;
-  trackingNumber?: string;
+  items: OrderItem[];
+  total: number;
+  address: { name: string; address: string; city: string; pincode: string; phone: string };
+  status: string;
+  paymentId?: string;
+  createdAt: string;
 }
 
 // Payment Types
-export interface PaymentMethod {
-  type: 'upi' | 'card' | 'netbanking' | 'wallet' | 'cod';
-  upiId?: string;
-  cardLastFour?: string;
-  bankName?: string;
-}
-
-export interface PaymentQR {
-  orderId: string;
-  merchantName: string;
-  upiId: string;
-  amount: number;
-  transactionRef: string;
-  expiresAt: Date;
-}
-
-// Coupon Types
-export interface Coupon {
-  code: string;
-  discount: number;
-  minOrderValue: number;
-  maxDiscount?: number;
-  expiryDate: Date;
-  active: boolean;
-}
+export type PaymentMethodType = 'razorpay' | 'cod' | 'upi' | 'card' | 'netbanking';
 
 // Filter Types
 export interface Filters {
   priceRange: [number, number];
-  rating: number;
   categories: string[];
   sortBy: 'price-low' | 'price-high' | 'newest' | 'bestselling' | 'rating';
 }

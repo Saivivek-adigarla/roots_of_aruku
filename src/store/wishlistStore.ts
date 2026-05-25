@@ -1,49 +1,45 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { Product } from '../types';
 
 interface WishlistStore {
-  items: string[];
-  addItem: (productId: string) => void;
-  removeItem: (productId: string) => void;
-  isInWishlist: (productId: string) => boolean;
+  items: Product[];
+  toggle: (product: Product) => void;
+  has: (productId: string) => boolean;
+  remove: (productId: string) => void;
   clearWishlist: () => void;
-  syncWishlist: (userId: string) => Promise<void>;
 }
 
 export const useWishlistStore = create<WishlistStore>()(
   persist(
     (set, get) => ({
       items: [],
-      
-      addItem: (productId) => {
+
+      toggle: (product) => {
         set((state) => {
-          if (!state.items.includes(productId)) {
-            return { items: [...state.items, productId] };
+          const exists = state.items.find((item) => item.id === product.id);
+          if (exists) {
+            return { items: state.items.filter((item) => item.id !== product.id) };
           }
-          return state;
+          return { items: [...state.items, product] };
         });
       },
-      
-      removeItem: (productId) => {
+
+      has: (productId) => {
+        return get().items.some((item) => item.id === productId);
+      },
+
+      remove: (productId) => {
         set((state) => ({
-          items: state.items.filter((id) => id !== productId),
+          items: state.items.filter((item) => item.id !== productId),
         }));
       },
-      
-      isInWishlist: (productId) => get().items.includes(productId),
-      
+
       clearWishlist: () => set({ items: [] }),
-      
-      syncWishlist: async (userId: string) => {
-        try {
-          // In production: POST /api/users/{userId}/wishlist
-        } catch (error) {
-          console.error('Failed to sync wishlist:', error);
-        }
-      },
     }),
     {
-      name: 'wishlist-store',
+      name: 'roa-wishlist',
+      version: 1,
     }
   )
 );

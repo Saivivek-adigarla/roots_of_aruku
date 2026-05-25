@@ -7,8 +7,9 @@ import { useWishlistStore } from '../store/wishlistStore';
 import { discountPct } from '../utils/helpers';
 import StarRating from '../components/StarRating';
 import toast from 'react-hot-toast';
+import { Product } from '../types';
 
-const products = SEED_PRODUCTS.map((p, i) => ({ id: String(i), ...p }));
+const products: Product[] = SEED_PRODUCTS.map((p, i) => ({ id: String(i), ...p }));
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
@@ -24,10 +25,7 @@ export default function ProductDetail() {
       <div className="max-w-7xl mx-auto px-4 py-16 text-center">
         <Package size={64} className="text-gray-300 mx-auto mb-4" />
         <h2 className="text-xl font-semibold text-gray-800 mb-2">Product not found</h2>
-        <p className="text-gray-500 mb-6">The product you're looking for doesn't exist</p>
-        <Link to="/products" className="inline-block bg-maroon-700 text-white px-8 py-3 rounded-full font-semibold">
-          Browse Products
-        </Link>
+        <Link to="/products" className="inline-block bg-maroon-700 text-white px-8 py-3 rounded-full font-semibold">Browse Products</Link>
       </div>
     );
   }
@@ -64,26 +62,16 @@ export default function ProductDetail() {
             <img src={product.images?.[currentImage] || 'https://images.pexels.com/photos/894695/pexels-photo-894695.jpeg'} alt={product.name} className="w-full h-full object-contain" />
             {product.images && product.images.length > 1 && (
               <>
-                <button onClick={prevImage} className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/80 rounded-full shadow flex items-center justify-center hover:bg-white">
-                  <ChevronLeft size={24} />
-                </button>
-                <button onClick={nextImage} className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/80 rounded-full shadow flex items-center justify-center hover:bg-white">
-                  <ChevronRight size={24} />
-                </button>
+                <button onClick={prevImage} className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/80 rounded-full shadow flex items-center justify-center hover:bg-white"><ChevronLeft size={24} /></button>
+                <button onClick={nextImage} className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/80 rounded-full shadow flex items-center justify-center hover:bg-white"><ChevronRight size={24} /></button>
               </>
             )}
-            {product.showOfferBadge && (
-              <span className="absolute top-4 left-4 bg-green-600 text-white text-sm font-bold px-3 py-1 rounded-full">{discount}% OFF</span>
-            )}
+            {product.showOfferBadge && <span className="absolute top-4 left-4 bg-green-600 text-white text-sm font-bold px-3 py-1 rounded-full">{discount}% OFF</span>}
           </div>
           {product.images && product.images.length > 1 && (
             <div className="flex gap-2 overflow-x-auto pb-2">
               {product.images.map((img, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setCurrentImage(idx)}
-                  className={`w-16 h-16 rounded-lg overflow-hidden border-2 flex-shrink-0 ${currentImage === idx ? 'border-maroon-700' : 'border-gray-200'}`}
-                >
+                <button key={idx} onClick={() => setCurrentImage(idx)} className={`w-16 h-16 rounded-lg overflow-hidden border-2 flex-shrink-0 ${currentImage === idx ? 'border-maroon-700' : 'border-gray-200'}`}>
                   <img src={img} alt="" className="w-full h-full object-cover" />
                 </button>
               ))}
@@ -98,9 +86,9 @@ export default function ProductDetail() {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded">
-              <Star size={14} fill="currentColor" />
-              <span className="text-sm font-semibold">4.5</span>
+            <div className="flex items-center gap-1 bg-green-100 px-2 py-1 rounded">
+              <Star size={14} fill="currentColor" className="text-green-700" />
+              <span className="text-sm font-semibold text-green-700">4.5</span>
             </div>
             <span className="text-gray-400">|</span>
             <span className="text-gray-500 text-sm">125 Reviews</span>
@@ -132,42 +120,22 @@ export default function ProductDetail() {
             <button onClick={handleAddToCart} className="flex-1 flex items-center justify-center gap-2 bg-maroon-700 text-white py-3 rounded-xl font-semibold hover:bg-maroon-800 transition shadow-lg shadow-maroon-200">
               <ShoppingCart size={20} /> Add to Cart
             </button>
-            <button onClick={handleBuyNow} className="flex-1 bg-gold-400 text-maroon-900 py-3 rounded-xl font-semibold hover:bg-gold-500 transition">
-              Buy Now
-            </button>
+            <button onClick={handleBuyNow} className="flex-1 bg-gold-400 text-maroon-900 py-3 rounded-xl font-semibold hover:bg-gold-500 transition">Buy Now</button>
           </div>
 
           <div className="grid grid-cols-3 gap-4 py-4 border-y border-gray-100">
-            <div className="text-center">
-              <Truck className="w-6 h-6 mx-auto text-maroon-700 mb-1" />
-              <p className="text-xs text-gray-600">Free Delivery</p>
-              <p className="text-xs text-gray-400">Orders over ₹499</p>
-            </div>
-            <div className="text-center">
-              <Shield className="w-6 h-6 mx-auto text-maroon-700 mb-1" />
-              <p className="text-xs text-gray-600">100% Organic</p>
-              <p className="text-xs text-gray-400">Certified</p>
-            </div>
-            <div className="text-center">
-              <Package className="w-6 h-6 mx-auto text-maroon-700 mb-1" />
-              <p className="text-xs text-gray-600">Secure Packaging</p>
-              <p className="text-xs text-gray-400">Safe delivery</p>
-            </div>
+            <div className="text-center"><Truck className="w-6 h-6 mx-auto text-maroon-700 mb-1" /><p className="text-xs text-gray-600">Free Delivery</p><p className="text-xs text-gray-400">Orders over ₹499</p></div>
+            <div className="text-center"><Shield className="w-6 h-6 mx-auto text-maroon-700 mb-1" /><p className="text-xs text-gray-600">100% Organic</p><p className="text-xs text-gray-400">Certified</p></div>
+            <div className="text-center"><Package className="w-6 h-6 mx-auto text-maroon-700 mb-1" /><p className="text-xs text-gray-600">Secure Packaging</p><p className="text-xs text-gray-400">Safe delivery</p></div>
           </div>
 
-          <div>
-            <h3 className="font-semibold mb-2">Description</h3>
-            <p className="text-gray-600 leading-relaxed">{product.description}</p>
-          </div>
+          <div><h3 className="font-semibold mb-2">Description</h3><p className="text-gray-600 leading-relaxed">{product.description}</p></div>
 
           <div>
             <h3 className="font-semibold mb-2">Benefits</h3>
             <ul className="space-y-2">
               {product.benefits.map((benefit, idx) => (
-                <li key={idx} className="flex items-center gap-2 text-gray-600">
-                  <Check size={16} className="text-green-500" />
-                  {benefit}
-                </li>
+                <li key={idx} className="flex items-center gap-2 text-gray-600"><Check size={16} className="text-green-500" />{benefit}</li>
               ))}
             </ul>
           </div>
@@ -184,7 +152,7 @@ export default function ProductDetail() {
                 <span className="font-medium">Customer {i}</span>
                 <StarRating rating={5 - i * 0.5} />
               </div>
-              <p className="text-gray-600 text-sm">Great product! {i === 1 ? 'Love the authentic taste from Araku Valley.' : i === 2 ? 'Fast delivery and excellent quality.' : 'Will order again!'}</p>
+              <p className="text-gray-600 text-sm">{i === 1 ? 'Love the authentic taste from Araku Valley.' : i === 2 ? 'Fast delivery and excellent quality.' : 'Will order again!'}</p>
             </div>
           ))}
         </div>

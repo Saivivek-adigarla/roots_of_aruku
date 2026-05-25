@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingCart, User, Leaf, Search, Menu, X, Heart, Package, LogOut, Settings } from 'lucide-react';
+import { ShoppingCart, User as UserIcon, Leaf, Search, Menu, X, Heart, Package, LogOut, Settings } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { useWishlistStore } from '../store/wishlistStore';
@@ -10,10 +10,11 @@ export default function Navbar() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const itemCount = useCartStore((s) => s.itemCount());
+  const cartStore = useCartStore();
+  const itemCount = cartStore.itemCount();
   const wishlistCount = useWishlistStore((s) => s.items.length);
   const user = useAuthStore((s) => s.user);
-  const setUser = useAuthStore((s) => s.setUser);
+  const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
 
   const handleSearch = (e: React.FormEvent) => {
@@ -26,7 +27,7 @@ export default function Navbar() {
   };
 
   const handleLogout = () => {
-    setUser(null);
+    logout();
     setUserMenuOpen(false);
     navigate('/');
   };
@@ -92,12 +93,12 @@ export default function Navbar() {
                       </div>
                       <div className="py-2">
                         <Link to="/profile" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 text-gray-700">
-                          <User size={18} /> My Profile
+                          <UserIcon size={18} /> My Profile
                         </Link>
                         <Link to="/orders" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 text-gray-700">
                           <Package size={18} /> My Orders
                         </Link>
-                        <Link to="/addresses" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 text-gray-700">
+                        <Link to="/wishlist" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 text-gray-700">
                           <Heart size={18} /> Wishlist
                         </Link>
                         {user.isAdmin && (
@@ -114,7 +115,7 @@ export default function Navbar() {
                 </>
               ) : (
                 <Link to="/login" className="text-white hover:text-gold-400 p-1">
-                  <User size={22} />
+                  <UserIcon size={22} />
                 </Link>
               )}
             </div>

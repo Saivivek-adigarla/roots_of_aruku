@@ -1,197 +1,85 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { CartItem, Product, Cart } from '../types';
+import { CartItem, Product } from '../types';
+import { getDeliveryCharge } from '../utils/helpers';
 
-interface CartStore extends Cart {
-  addItem: (product: Product, quantity: number) => void;
+interface CartStore {
+  items: CartItem[];
+  addItem: (product: Product, qty?: number) => void;
   removeItem: (productId: string) => void;
-  updateQuantity: (productId: string, quantity: number) => void;
-  applyCoupon: (code: string, discountPercent: number) => void;
-  removeCoupon: () => void;
+  updateQuantity: (productId: string, qty: number) => void;
   clearCart: () => void;
-  calculateTotals: () => void;
-  syncCart: (userId: string) => Promise<void>;
+  total: () => number;
+  discount: () => number;
+  itemCount: () => number;
 }
-
-const calculateCartTotals = (items: CartItem[], discount: number = 0) => {
-  const subtotal = items.reduce(
-    (sum, item) => sum + item.product.price * item.quantity,
-    0
-  );
-  const tax = Math.round(subtotal * 0.18); // 18% GST
-  const discountAmount = Math.round(subtotal * (discount / 100));
-  const total = subtotal + tax - discountAmount;
-  
-  return {
-    subtotal: Math.round(subtotal),
-    tax,
-    discount: discountAmount,
-    total,
-  };
-};
 
 export const useCartStore = create<CartStore>()(
   persist(
     (set, get) => ({
       items: [],
-      subtotal: 0,
-      tax: 0,
-      discount: 0,
-      total: 0,
-      couponCode: undefined,
-      lastUpdated: new Date(),
-      
-      addItem: (product, quantity) => {
+
+      addItem: (product, qty = 1) => {
         set((state) => {
-          const existingItem = state.items.find(
-            (item) => item.productId === product.id
-          );
-          
+          const existing = state.items.find((item) => item.product.id === product.id);
+
           let newItems: CartItem[];
-          
-          if (existingItem) {
+          if (existing) {
             newItems = state.items.map((item) =>
-              item.productId === product.id
-                ? { ...item, quantity: Math.min(item.quantity + quantity, product.stock) }
+              item.product.id === product.id
+                ? { ...item, qty: item.qty + qty }
                 : item
             );
           } else {
-            newItems = [
-              ...state.items,
-              {
-                productId: product.id,
-                product: { ...product },
-                quantity: Math.min(quantity, product.stock),
-                addedAt: new Date(),
-              },
-            ];
+            newItems = [...state.items, { product, qty }];
           }
-          
-          const totals = calculateCartTotals(newItems, state.discount);
-          return {
-            items: newItems,
-            ...totals,
-            lastUpdated: new Date(),
-          };
+
+          return { items: newItems };
         });
       },
-      
+
       removeItem: (productId) => {
-        set((state) => {
-          const newItems = state.items.filter(
-            (item) => item.productId !== productId
-          );
-          const totals = calculateCartTotals(newItems, state.discount);
-          return {
-            items: newItems,
-            ...totals,
-            lastUpdated: new Date(),
-          };
-        });
+        set((state) => ({
+          items: state.items.filter((item) => item.product.id !== productId),
+        }));
       },
-      
-      updateQuantity: (productId, quantity) => {
-        set((state) => {
-          if (quantity <= 0) {
-            const newItems = state.items.filter((item) => item.productId !== productId);
-            const totals = calculateCartTotals(newItems, state.discount);
-            return {
-              items: newItems,
-              ...totals,
-              lastUpdated: new Date(),
-            };
-          }
-          
-          const newItems = state.items.map((item) =>
-            item.productId === productId
-              ? { ...item, quantity }
-              : item
-          );
-          
-          const totals = calculateCartTotals(newItems, state.discount);
-          return {
-            items: newItems,
-            ...totals,
-            lastUpdated: new Date(),
-          };
-        });
-      },
-      
-      applyCoupon: (code, discountPercent) => {
-        set((state) => {
-          const totals = calculateCartTotals(state.items, discountPercent);
-          return {
-            couponCode: code,
-            discount: discountPercent,
-            ...totals,
-            lastUpdated: new Date(),
-          };
-        });
-      },
-      
-      removeCoupon: () => {
-        set((state) => {
-          const totals = calculateCartTotals(state.items, 0);
-          return {
-            couponCode: undefined,
-            discount: 0,
-            ...totals,
-            lastUpdated: new Date(),
-          };
-        });
-      },
-      
-      clearCart: () => {
-        set({
-          items: [],
-          subtotal: 0,
-          tax: 0,
-          discount: 0,
-          total: 0,
-          couponCode: undefined,
-          lastUpdated: new Date(),
-        });
-      },
-      
-      calculateTotals: () => {
-        set((state) => {
-          const totals = calculateCartTotals(state.items, state.discount);
-          return {
-            ...totals,
-            lastUpdated: new Date(),
-          };
-        });
-      },
-      
-      syncCart: async (userId: string) => {
-        try {
-          const cartData = get();
-          // In production: POST /api/users/{userId}/cart
-        } catch (error) {
-          console.error('Failed to sync cart:', error);
+
+      updateQuantity: (productId, qty) => {
+        if (qty <= 0) {
+          get().removeItem(productId);
+          return;
         }
+        set((state) => ({
+          items: state.items.map((item) =>
+            item.product.id === productId ? { ...item, qty } : item
+          ),
+        }));
+      },
+
+      clearCart: () => set({ items: [] }),
+
+      total: () => {
+        const items = get().items;
+        const subtotal = items.reduce((sum, item) => sum + item.product.offerPrice * item.qty, 0);
+        const delivery = getDeliveryCharge(subtotal);
+        return subtotal + delivery;
+      },
+
+      discount: () => {
+        const items = get().items;
+        return items.reduce(
+          (sum, item) => sum + (item.product.mrp - item.product.offerPrice) * item.qty,
+          0
+        );
+      },
+
+      itemCount: () => {
+        return get().items.reduce((count, item) => count + item.qty, 0);
       },
     }),
     {
-      name: 'cart-store',
-      version: 2,
-      serialize: (state) => {
-        return JSON.stringify({
-          state,
-          version: 2,
-        });
-      },
-      deserialize: (str) => {
-        const { state } = JSON.parse(str);
-        return {
-          ...state,
-          lastUpdated: new Date(state.lastUpdated),
-          items: state.items.map((item: CartItem) => ({
-            ...item,
-            addedAt: new Date(item.addedAt),
-          })),
-        };
-      },
+      name: 'roa-cart',
+      version: 1,
     }
   )
 );

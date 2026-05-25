@@ -146,7 +146,6 @@ export default function Login() {
     try {
       if (!showOtpField) {
         // In demo mode, just show OTP field
-        const sanitizedPhone = phone.replace(/\D/g, '').slice(-10);
         toast.success('OTP sent to your phone');
         setShowOtpField(true);
         setCsrfToken(generateCsrfToken());

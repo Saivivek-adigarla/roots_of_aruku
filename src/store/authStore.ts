@@ -1,21 +1,16 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { User } from '../types';
+import { secureStorage } from '../utils/security';
 
 interface AuthStore {
   user: User | null;
-  isLoading: boolean;
   isAuthenticated: boolean;
-  error: string | null;
-  
+
   // Auth actions
   setUser: (user: User | null) => void;
-  setLoading: (loading: boolean) => void;
-  setError: (error: string | null) => void;
+  isAdmin: () => boolean;
   logout: () => void;
-  
-  // Session persistence
-  restoreSession: () => Promise<void>;
   clearSession: () => void;
 }
 
@@ -23,57 +18,44 @@ export const useAuthStore = create<AuthStore>()(
   persist(
     (set, get) => ({
       user: null,
-      isLoading: false,
       isAuthenticated: false,
-      error: null,
-      
+
       setUser: (user) => {
         set({
           user,
           isAuthenticated: !!user,
-          error: null,
         });
+        if (user) {
+          secureStorage.set('session_timestamp', Date.now());
+        } else {
+          secureStorage.remove('session_timestamp');
+        }
       },
-      
-      setLoading: (loading) => set({ isLoading: loading }),
-      
-      setError: (error) => set({ error }),
-      
+
+      isAdmin: () => {
+        const user = get().user;
+        const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
+        return user?.isAdmin === true || user?.email === adminEmail;
+      },
+
       logout: () => {
         set({
           user: null,
           isAuthenticated: false,
-          error: null,
         });
-        // Clear any auth tokens
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('refreshToken');
+        secureStorage.remove('session_timestamp');
       },
-      
-      restoreSession: async () => {
-        try {
-          const token = localStorage.getItem('authToken');
-          if (token) {
-            set({ isLoading: true });
-            // Verify token with backend
-            set({ isLoading: false });
-          }
-        } catch (error) {
-          set({ error: 'Session restore failed', isLoading: false });
-        }
-      },
-      
+
       clearSession: () => {
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('refreshToken');
         set({
           user: null,
           isAuthenticated: false,
         });
+        secureStorage.clear();
       },
     }),
     {
-      name: 'auth-store',
+      name: 'roa-auth',
       version: 1,
     }
   )

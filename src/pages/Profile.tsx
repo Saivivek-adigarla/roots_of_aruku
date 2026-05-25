@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Mail, Phone, Package, MapPin, Heart, LogOut, CreditCard as Edit2, Save } from 'lucide-react';
+import { User as UserIcon, Mail, Phone, Package, MapPin, Heart, LogOut, CreditCard as Edit2, Save } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase/config';
 import toast from 'react-hot-toast';
+import { isValidName, sanitizeHtml } from '../utils/security';
 
 export default function Profile() {
   const user = useAuthStore((s) => s.user);
@@ -26,11 +27,11 @@ export default function Profile() {
   };
 
   const handleSave = () => {
-    if (!name.trim()) {
-      toast.error('Name is required');
+    if (!name.trim() || !isValidName(name)) {
+      toast.error('Please enter a valid name');
       return;
     }
-    setUser({ ...user!, name, phone });
+    setUser({ ...user!, name: sanitizeHtml(name.trim()), phone });
     setEditing(false);
     toast.success('Profile updated');
   };
@@ -53,31 +54,23 @@ export default function Profile() {
             <h2 className="text-xl font-semibold">{user.name}</h2>
             <p className="text-gray-500 text-sm">{user.email}</p>
             {user.isAdmin && (
-              <span className="inline-block mt-2 px-3 py-1 bg-gold-400 text-maroon-900 text-xs font-semibold rounded-full">
-                Admin
-              </span>
+              <span className="inline-block mt-2 px-3 py-1 bg-gold-400 text-maroon-900 text-xs font-semibold rounded-full">Admin</span>
             )}
           </div>
 
           <nav className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <button onClick={() => navigate('/orders')} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-warm-50 transition border-b border-gray-100">
-              <Package size={18} className="text-maroon-700" />
-              <span>My Orders</span>
+              <Package size={18} className="text-maroon-700" /><span>My Orders</span>
             </button>
             <button onClick={() => navigate('/addresses')} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-warm-50 transition border-b border-gray-100">
-              <MapPin size={18} className="text-maroon-700" />
-              <span>Saved Addresses</span>
+              <MapPin size={18} className="text-maroon-700" /><span>Saved Addresses</span>
             </button>
             <button onClick={() => navigate('/wishlist')} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-warm-50 transition">
-              <Heart size={18} className="text-maroon-700" />
-              <span>Wishlist</span>
+              <Heart size={18} className="text-maroon-700" /><span>Wishlist</span>
             </button>
           </nav>
 
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 py-3 text-red-600 hover:bg-red-50 rounded-xl transition"
-          >
+          <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-3 text-red-600 hover:bg-red-50 rounded-xl transition">
             <LogOut size={18} /> Logout
           </button>
         </div>
@@ -87,17 +80,12 @@ export default function Profile() {
             <div className="flex items-center justify-between mb-6">
               <h3 className="font-semibold text-lg">Personal Information</h3>
               {!editing ? (
-                <button
-                  onClick={() => setEditing(true)}
-                  className="flex items-center gap-1 text-maroon-700 font-medium hover:underline"
-                >
+                <button onClick={() => setEditing(true)} className="flex items-center gap-1 text-maroon-700 font-medium hover:underline">
                   <Edit2 size={16} /> Edit
                 </button>
               ) : (
                 <div className="flex gap-2">
-                  <button onClick={() => setEditing(false)} className="px-3 py-1 border border-gray-300 rounded text-sm">
-                    Cancel
-                  </button>
+                  <button onClick={() => setEditing(false)} className="px-3 py-1 border border-gray-300 rounded text-sm">Cancel</button>
                   <button onClick={handleSave} className="flex items-center gap-1 px-3 py-1 bg-maroon-700 text-white rounded text-sm">
                     <Save size={14} /> Save
                   </button>
@@ -107,15 +95,11 @@ export default function Profile() {
 
             <div className="space-y-4">
               <div className="flex items-center gap-4">
-                <User size={20} className="text-gray-400" />
+                <UserIcon size={20} className="text-gray-400" />
                 <div className="flex-1">
                   <label className="text-xs text-gray-500">Full Name</label>
                   {editing ? (
-                    <input
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-maroon-500"
-                    />
+                    <input value={name} onChange={(e) => setName(e.target.value)} className="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-maroon-500" />
                   ) : (
                     <p className="font-medium">{user.name}</p>
                   )}
@@ -135,12 +119,7 @@ export default function Profile() {
                 <div className="flex-1">
                   <label className="text-xs text-gray-500">Phone Number</label>
                   {editing ? (
-                    <input
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="Add phone number"
-                      className="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-maroon-500"
-                    />
+                    <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Add phone number" className="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-maroon-500" />
                   ) : (
                     <p className="font-medium">{user.phone || 'Not added'}</p>
                   )}
