@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send, Loader2, Bot, User } from 'lucide-react';
+import { stripHtml } from '../utils/security';
 
 interface Message {
   id: number;
@@ -33,17 +34,24 @@ export default function ChatWidget() {
 
     setLoading(true);
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
       const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
         },
-        body: JSON.stringify({ message: userMessage }),
+        body: JSON.stringify({ message: stripHtml(userMessage) }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
+
       if (!res.ok) throw new Error('Request failed');
       const data = await res.json();
-      setMessages(prev => [...prev, { id: newMsgId + 1, role: 'assistant', content: data.response || 'Sorry, I couldn\'t process that. Please try again.' }]);
+      const responseText = typeof data.response === 'string' ? stripHtml(data.response) : 'Sorry, I couldn\'t process that. Please try again.';
+      setMessages(prev => [...prev, { id: newMsgId + 1, role: 'assistant', content: responseText }]);
     } catch {
       setMessages(prev => [...prev, { id: newMsgId + 1, role: 'assistant', content: 'Sorry, I\'m having trouble connecting. Please try again later.' }]);
     } finally {

@@ -102,7 +102,7 @@ export default function Signup() {
       await updateProfile(userCredential.user, { displayName: sanitizedName });
 
       setUser({
-        id: userCredential.user.uid,
+        uid: userCredential.user.uid,
         name: sanitizedName,
         email: sanitizedEmail,
         phone: phone ? phone.replace(/\D/g, '').slice(-10) : '',

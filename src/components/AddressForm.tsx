@@ -1,17 +1,8 @@
 import { useState } from 'react';
 import { MapPin, User, Phone } from 'lucide-react';
 import toast from 'react-hot-toast';
-
-export interface Address {
-  id: string;
-  name: string;
-  phone: string;
-  address: string;
-  city: string;
-  state: string;
-  pincode: string;
-  landmark?: string;
-}
+import { isValidPhone, isValidPincode, isValidName, sanitizeHtml, generateSecureId } from '../utils/security';
+import type { Address } from '../types';
 
 interface Props {
   onSave: (addr: Address) => void;
@@ -21,7 +12,7 @@ interface Props {
 
 export default function AddressForm({ onSave, initial, onCancel }: Props) {
   const [form, setForm] = useState<Address>(initial || {
-    id: Date.now().toString(),
+    id: generateSecureId('ADDR'),
     name: '',
     phone: '',
     address: '',
@@ -41,15 +32,28 @@ export default function AddressForm({ onSave, initial, onCancel }: Props) {
       toast.error('Fill all required fields');
       return;
     }
-    if (form.phone.length < 10) {
-      toast.error('Enter valid phone number');
+    if (!isValidName(form.name)) {
+      toast.error('Name should contain only letters (2-100 characters)');
       return;
     }
-    if (form.pincode.length !== 6) {
+    if (!isValidPhone(form.phone)) {
+      toast.error('Enter valid 10-digit phone number');
+      return;
+    }
+    if (!isValidPincode(form.pincode)) {
       toast.error('Enter valid 6-digit pincode');
       return;
     }
-    onSave(form);
+    const sanitized: Address = {
+      ...form,
+      id: form.id || generateSecureId('ADDR'),
+      name: sanitizeHtml(form.name),
+      address: sanitizeHtml(form.address),
+      city: sanitizeHtml(form.city),
+      state: sanitizeHtml(form.state),
+      landmark: form.landmark ? sanitizeHtml(form.landmark) : undefined,
+    };
+    onSave(sanitized);
     toast.success('Address saved');
   };
 

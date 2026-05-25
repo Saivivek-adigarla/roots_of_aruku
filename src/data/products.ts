@@ -1,4 +1,4 @@
-export interface Product { id: string; name: string; weight: string; category: 'coffee' | 'turmeric' | 'honey' | 'spices' | 'other'; mrp: number; sellingPrice: number; offerPrice: number; description: string; benefits: string[]; status: 'active' | 'outofstock'; showOfferBadge: boolean; featured: boolean; images: string[]; emoji: string; createdAt?: unknown; }
+import type { Product } from '../types';
 
 export const SEED_PRODUCTS: Omit<Product, 'id' | 'createdAt'>[] = [
   { name: 'Tribal Reserve Coffee', weight: '50g', category: 'coffee', mrp: 299, sellingPrice: 229, offerPrice: 199, emoji: '☕', description: 'Premium organic coffee from Araku Valley tribal farms.', benefits: ['100% Organic', 'Tribal Sourced', 'No Pesticides', 'Direct from Farm'], status: 'active', showOfferBadge: true, featured: true, images: ['https://images.pexels.com/photos/894695/pexels-photo-894695.jpeg?w=400'] },

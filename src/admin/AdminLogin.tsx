@@ -41,7 +41,7 @@ export default function AdminLogin() {
         return;
       }
       setUser({
-        id: userCredential.user.uid,
+        uid: userCredential.user.uid,
         name: sanitizeHtml(userCredential.user.displayName || 'Admin'),
         email: userCredential.user.email || sanitizedEmail,
         phone: '',

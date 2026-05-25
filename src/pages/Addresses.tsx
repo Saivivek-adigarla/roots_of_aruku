@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { Plus, MapPin, CreditCard as Edit2, Trash2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
-import AddressForm, { type Address } from '../components/AddressForm';
+import type { Address } from '../types';
+import AddressForm from '../components/AddressForm';
 import toast from 'react-hot-toast';
+import { secureStorage } from '../utils/security';
 
 export default function Addresses() {
   const user = useAuthStore((s) => s.user);
@@ -17,12 +19,12 @@ export default function Addresses() {
       navigate('/login');
       return;
     }
-    const saved = localStorage.getItem('addresses');
-    if (saved) setAddresses(JSON.parse(saved));
+    const saved = secureStorage.get<Address[]>('addresses');
+    if (saved) setAddresses(saved);
   }, [user, navigate]);
 
   const saveToStorage = (addrs: Address[]) => {
-    localStorage.setItem('addresses', JSON.stringify(addrs));
+    secureStorage.set('addresses', addrs);
   };
 
   const handleSave = (addr: Address) => {

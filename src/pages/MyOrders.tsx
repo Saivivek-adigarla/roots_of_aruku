@@ -3,20 +3,8 @@ import { Link } from 'react-router-dom';
 import { Eye, ChevronRight, Calendar, MapPin, CreditCard, ShoppingBag } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
-
-interface OrderItem {
-  product: { id: string; name: string; weight: string; images?: string[]; offerPrice: number };
-  qty: number;
-}
-
-interface Order {
-  orderId: string;
-  items: OrderItem[];
-  total: number;
-  address: { name: string; address: string; city: string; pincode: string };
-  status: string;
-  createdAt: string;
-}
+import { secureStorage } from '../utils/security';
+import type { Order } from '../types';
 
 export default function MyOrders() {
   const user = useAuthStore((s) => s.user);
@@ -28,19 +16,15 @@ export default function MyOrders() {
       navigate('/login');
       return;
     }
-    const lastOrder = localStorage.getItem('lastOrder');
+    const lastOrder = secureStorage.get<Order>('lastOrder');
+    const allOrders = secureStorage.get<Order[]>('demoOrders') || [];
     if (lastOrder) {
-      const demoOrders = localStorage.getItem('demoOrders');
-      const existing = demoOrders ? JSON.parse(demoOrders) : [];
-      const lastOrderObj = JSON.parse(lastOrder);
-      if (!existing.find((o: Order) => o.orderId === lastOrderObj.orderId)) {
-        existing.push(lastOrderObj);
-        localStorage.setItem('demoOrders', JSON.stringify(existing));
-      }
-      setOrders([lastOrderObj, ...existing.filter((o: Order) => o.orderId !== lastOrderObj.orderId)]);
+      const exists = allOrders.find((o) => o.orderId === lastOrder.orderId);
+      const updated = exists ? allOrders : [...allOrders, lastOrder];
+      secureStorage.set('demoOrders', updated);
+      setOrders([lastOrder, ...updated.filter((o) => o.orderId !== lastOrder.orderId)]);
     } else {
-      const demoOrders = localStorage.getItem('demoOrders');
-      setOrders(demoOrders ? JSON.parse(demoOrders) : []);
+      setOrders(allOrders);
     }
   }, [user, navigate]);
 
