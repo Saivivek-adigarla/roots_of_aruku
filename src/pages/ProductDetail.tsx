@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Heart, ShoppingCart, Minus, Plus, ChevronLeft, ChevronRight, Check, Star, Truck, Shield, Package } from 'lucide-react';
 import { SEED_PRODUCTS } from '../data/products';
@@ -6,19 +6,82 @@ import { useCartStore } from '../store/cartStore';
 import { useWishlistStore } from '../store/wishlistStore';
 import { discountPct } from '../utils/helpers';
 import StarRating from '../components/StarRating';
+import ReviewForm from '../components/ReviewForm';
 import toast from 'react-hot-toast';
 import { Product } from '../types';
+import { supabase } from '../lib/supabase';
 
-const products: Product[] = SEED_PRODUCTS.map((p, i) => ({ id: String(i), ...p }));
+interface Review {
+  id: string;
+  rating: number;
+  title: string;
+  comment: string;
+  is_verified_purchase: boolean;
+  created_at: string;
+  user_name?: string;
+}
+
+const seedProducts: Product[] = SEED_PRODUCTS.map((p, i) => ({ id: String(i), ...p }));
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [qty, setQty] = useState(1);
   const [currentImage, setCurrentImage] = useState(0);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [avgRating, setAvgRating] = useState(0);
+  const [dbProduct, setDbProduct] = useState<{ stock_quantity: number; status: string } | null>(null);
   const addItem = useCartStore((s) => s.addItem);
   const { toggle, has } = useWishlistStore();
-  const product = products.find((p) => p.id === id);
+
+  const product = seedProducts.find((p) => p.id === id);
+
+  useEffect(() => {
+    if (id) {
+      fetchReviews();
+      fetchProductStock();
+    }
+  }, [id]);
+
+  const fetchReviews = async () => {
+    try {
+      const { data } = await supabase
+        .from('reviews')
+        .select('*, users(name)')
+        .eq('product_id', id)
+        .order('created_at', { ascending: false });
+      if (data) {
+        const mapped = data.map((r: { id: string; rating: number; title: string; comment: string; is_verified_purchase: boolean; created_at: string; users?: { name: string } }) => ({
+          id: r.id,
+          rating: r.rating,
+          title: r.title,
+          comment: r.comment,
+          is_verified_purchase: r.is_verified_purchase,
+          created_at: r.created_at,
+          user_name: r.users?.name || 'Customer',
+        }));
+        setReviews(mapped);
+        if (mapped.length > 0) {
+          setAvgRating(mapped.reduce((s: number, r: Review) => s + r.rating, 0) / mapped.length);
+        }
+      }
+    } catch {
+      // Fallback to empty reviews
+    }
+  };
+
+  const fetchProductStock = async () => {
+    try {
+      const { data } = await supabase
+        .from('products')
+        .select('stock_quantity, status')
+        .eq('id', id)
+        .maybeSingle();
+      if (data) setDbProduct(data);
+    } catch {
+      // Fallback
+    }
+  };
 
   if (!product) {
     return (
@@ -32,6 +95,7 @@ export default function ProductDetail() {
 
   const wishlisted = has(product.id);
   const discount = discountPct(product.mrp, product.offerPrice);
+  const inStock = dbProduct ? dbProduct.stock_quantity > 0 : product.status === 'active';
 
   const handleAddToCart = () => {
     addItem(product, qty);
@@ -88,12 +152,12 @@ export default function ProductDetail() {
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 bg-green-100 px-2 py-1 rounded">
               <Star size={14} fill="currentColor" className="text-green-700" />
-              <span className="text-sm font-semibold text-green-700">4.5</span>
+              <span className="text-sm font-semibold text-green-700">{avgRating > 0 ? avgRating.toFixed(1) : '4.5'}</span>
             </div>
             <span className="text-gray-400">|</span>
-            <span className="text-gray-500 text-sm">125 Reviews</span>
+            <span className="text-gray-500 text-sm">{reviews.length || 125} Reviews</span>
             <span className="text-gray-400">|</span>
-            <span className="text-green-600 text-sm font-medium">In Stock</span>
+            <span className={`text-sm font-medium ${inStock ? 'text-green-600' : 'text-red-600'}`}>{inStock ? 'In Stock' : 'Out of Stock'}</span>
           </div>
 
           <div className="bg-warm-50 rounded-xl p-4">
@@ -105,22 +169,26 @@ export default function ProductDetail() {
             <p className="text-sm text-gray-500 mt-1">Inclusive of all taxes</p>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
-              <button onClick={() => setQty((q) => Math.max(1, q - 1))} className="p-3 hover:bg-gray-100"><Minus size={18} /></button>
-              <span className="w-12 text-center font-semibold">{qty}</span>
-              <button onClick={() => setQty((q) => q + 1)} className="p-3 hover:bg-gray-100"><Plus size={18} /></button>
+          {inStock && (
+            <div className="flex items-center gap-4">
+              <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
+                <button onClick={() => setQty((q) => Math.max(1, q - 1))} className="p-3 hover:bg-gray-100"><Minus size={18} /></button>
+                <span className="w-12 text-center font-semibold">{qty}</span>
+                <button onClick={() => setQty((q) => q + 1)} className="p-3 hover:bg-gray-100"><Plus size={18} /></button>
+              </div>
+              <button onClick={() => toggle(product)} className={`p-3 rounded-lg border ${wishlisted ? 'text-red-500 border-red-500' : 'text-gray-400 border-gray-200'}`}>
+                <Heart size={20} fill={wishlisted ? 'currentColor' : 'none'} />
+              </button>
             </div>
-            <button onClick={() => toggle(product)} className={`p-3 rounded-lg border ${wishlisted ? 'text-red-500 border-red-500' : 'text-gray-400 border-gray-200'}`}>
-              <Heart size={20} fill={wishlisted ? 'currentColor' : 'none'} />
-            </button>
-          </div>
+          )}
 
           <div className="flex gap-3">
-            <button onClick={handleAddToCart} className="flex-1 flex items-center justify-center gap-2 bg-maroon-700 text-white py-3 rounded-xl font-semibold hover:bg-maroon-800 transition shadow-lg shadow-maroon-200">
-              <ShoppingCart size={20} /> Add to Cart
+            <button onClick={handleAddToCart} disabled={!inStock} className="flex-1 flex items-center justify-center gap-2 bg-maroon-700 text-white py-3 rounded-xl font-semibold hover:bg-maroon-800 transition shadow-lg shadow-maroon-200 disabled:opacity-50 disabled:cursor-not-allowed">
+              <ShoppingCart size={20} /> {inStock ? 'Add to Cart' : 'Out of Stock'}
             </button>
-            <button onClick={handleBuyNow} className="flex-1 bg-gold-400 text-maroon-900 py-3 rounded-xl font-semibold hover:bg-gold-500 transition">Buy Now</button>
+            {inStock && (
+              <button onClick={handleBuyNow} className="flex-1 bg-gold-400 text-maroon-900 py-3 rounded-xl font-semibold hover:bg-gold-500 transition">Buy Now</button>
+            )}
           </div>
 
           <div className="grid grid-cols-3 gap-4 py-4 border-y border-gray-100">
@@ -142,20 +210,36 @@ export default function ProductDetail() {
         </div>
       </div>
 
-      <section>
-        <h2 className="text-xl font-bold mb-4">Customer Reviews</h2>
-        <div className="bg-white rounded-xl p-6 border border-gray-100 space-y-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="border-b border-gray-100 pb-4 last:border-0">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 bg-maroon-100 rounded-full flex items-center justify-center text-maroon-700 font-semibold text-sm">U</div>
-                <span className="font-medium">Customer {i}</span>
-                <StarRating rating={5 - i * 0.5} />
+      <section className="space-y-6">
+        <h2 className="text-xl font-bold">Customer Reviews</h2>
+
+        {reviews.length > 0 ? (
+          <div className="space-y-4">
+            {reviews.map((review) => (
+              <div key={review.id} className="bg-white rounded-xl p-5 border border-gray-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 bg-maroon-100 rounded-full flex items-center justify-center text-maroon-700 font-semibold text-sm">
+                    {review.user_name?.charAt(0) || 'U'}
+                  </div>
+                  <span className="font-medium text-gray-800">{review.user_name}</span>
+                  <StarRating rating={review.rating} />
+                  {review.is_verified_purchase && (
+                    <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Verified Purchase</span>
+                  )}
+                </div>
+                {review.title && <p className="font-semibold text-sm mb-1">{review.title}</p>}
+                <p className="text-gray-600 text-sm">{review.comment}</p>
+                <p className="text-xs text-gray-400 mt-2">{new Date(review.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
               </div>
-              <p className="text-gray-600 text-sm">{i === 1 ? 'Love the authentic taste from Araku Valley.' : i === 2 ? 'Fast delivery and excellent quality.' : 'Will order again!'}</p>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-gray-50 rounded-xl p-6 text-center">
+            <p className="text-gray-500">No reviews yet. Be the first to review this product!</p>
+          </div>
+        )}
+
+        <ReviewForm productId={id || ''} onReviewAdded={fetchReviews} />
       </section>
     </div>
   );

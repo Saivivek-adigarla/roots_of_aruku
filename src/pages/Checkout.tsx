@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CreditCard, Truck, MapPin, Check, Loader2, Wallet, Package, Shield } from 'lucide-react';
+import { CreditCard, Truck, MapPin, Check, Loader2, Wallet, Package, Shield, Tag, X } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { getDeliveryCharge, DELIVERY_FREE_THRESHOLD } from '../utils/helpers';
@@ -19,6 +19,7 @@ import {
   validateCsrfToken,
   generateSecureId,
 } from '../utils/security';
+import { supabase } from '../lib/supabase';
 
 export default function Checkout() {
   const { items, clearCart } = useCartStore();
@@ -31,11 +32,19 @@ export default function Checkout() {
   const [paymentMethod, setPaymentMethod] = useState<'razorpay' | 'cod'>('razorpay');
   const [loading, setLoading] = useState(false);
   const [csrfToken, setCsrfToken] = useState('');
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number; type: 'percentage' | 'flat' } | null>(null);
+  const [couponLoading, setCouponLoading] = useState(false);
 
   const subtotal = items.reduce((sum, item) => sum + item.product.offerPrice * item.qty, 0);
   const discountAmt = items.reduce((sum, item) => sum + (item.product.mrp - item.product.offerPrice) * item.qty, 0);
   const deliveryCharge = getDeliveryCharge(subtotal);
-  const grandTotal = subtotal + deliveryCharge;
+  const couponDiscount = appliedCoupon
+    ? appliedCoupon.type === 'percentage'
+      ? Math.min(Math.round(subtotal * appliedCoupon.discount / 100), appliedCoupon.discount || Infinity)
+      : appliedCoupon.discount
+    : 0;
+  const grandTotal = Math.max(0, subtotal - couponDiscount + deliveryCharge);
 
   useEffect(() => {
     setCsrfToken(generateCsrfToken());
@@ -57,6 +66,43 @@ export default function Checkout() {
     }
     return true;
   }, [items]);
+
+  const applyCoupon = async () => {
+    const code = couponCode.trim().toUpperCase();
+    if (!code) { toast.error('Enter a coupon code'); return; }
+    setCouponLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('coupons')
+        .select('*')
+        .eq('code', code)
+        .eq('is_active', true)
+        .lte('valid_from', new Date().toISOString())
+        .gte('valid_until', new Date().toISOString())
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) { toast.error('Invalid or expired coupon code'); return; }
+      if (data.min_order_value > subtotal) { toast.error(`Minimum order ₹${data.min_order_value} required`); return; }
+      if (data.usage_limit && data.used_count >= data.usage_limit) { toast.error('Coupon usage limit reached'); return; }
+
+      const discount = data.discount_type === 'percentage'
+        ? Math.min(Math.round(subtotal * data.discount_value / 100), data.max_discount || Infinity)
+        : data.discount_value;
+
+      setAppliedCoupon({ code: data.code, discount, type: data.discount_type });
+      toast.success(`Coupon applied! You save ₹${discount}`);
+    } catch {
+      toast.error('Failed to apply coupon');
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCode('');
+    toast.success('Coupon removed');
+  };
 
   const handleAddressSave = (addr: Address) => {
     if (!isValidName(addr.name)) { toast.error('Invalid name'); return; }
@@ -90,8 +136,8 @@ export default function Checkout() {
     if (!validateCartItems()) return false;
     if (!selectedAddress) { toast.error('Select delivery address'); return false; }
 
-    const expectedTotal = items.reduce((sum, item) => sum + item.product.offerPrice * item.qty, 0) + deliveryCharge;
-    if (grandTotal !== expectedTotal) { toast.error('Price mismatch detected'); return false; }
+    const expectedTotal = items.reduce((sum, item) => sum + item.product.offerPrice * item.qty, 0) - couponDiscount + deliveryCharge;
+    if (grandTotal !== Math.max(0, expectedTotal)) { toast.error('Price mismatch detected'); return false; }
 
     return true;
   };
@@ -275,9 +321,32 @@ export default function Checkout() {
         <div className="lg:sticky lg:top-24 h-fit">
           <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
             <h2 className="font-semibold text-lg mb-4">Order Summary</h2>
+
+            {!appliedCoupon ? (
+              <div className="flex gap-2 mb-4">
+                <div className="relative flex-1">
+                  <Tag className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} placeholder="Coupon code" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyCoupon(); } }} className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-maroon-500 outline-none text-sm" />
+                </div>
+                <button onClick={applyCoupon} disabled={couponLoading || !couponCode} className="px-4 py-2 bg-maroon-700 text-white rounded-lg text-sm font-medium hover:bg-maroon-800 disabled:opacity-50">
+                  {couponLoading ? '...' : 'Apply'}
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-3 py-2 mb-4">
+                <div className="flex items-center gap-2">
+                  <Tag size={16} className="text-green-600" />
+                  <span className="text-sm font-medium text-green-700">{appliedCoupon.code}</span>
+                  <span className="text-sm text-green-600">-₹{couponDiscount}</span>
+                </div>
+                <button onClick={removeCoupon} className="text-gray-400 hover:text-red-500"><X size={16} /></button>
+              </div>
+            )}
+
             <div className="space-y-2 text-sm">
               <div className="flex justify-between"><span className="text-gray-600">Subtotal ({items.reduce((s, i) => s + i.qty, 0)} items)</span><span>₹{subtotal}</span></div>
-              <div className="flex justify-between text-green-600"><span>Discount</span><span>-₹{discountAmt}</span></div>
+              <div className="flex justify-between text-green-600"><span>Product Discount</span><span>-₹{discountAmt}</span></div>
+              {appliedCoupon && <div className="flex justify-between text-green-600"><span>Coupon ({appliedCoupon.code})</span><span>-₹{couponDiscount}</span></div>}
               <div className="flex justify-between"><span className="text-gray-600">Delivery</span><span>{deliveryCharge === 0 ? <span className="text-green-600">FREE</span> : `₹${deliveryCharge}`}</span></div>
               <div className="border-t pt-2 mt-2 flex justify-between font-bold text-lg"><span>Total</span><span>₹{grandTotal}</span></div>
             </div>

@@ -1,34 +1,79 @@
-import { useState } from 'react';
-import { Link, Routes, Route, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, ShoppingCart, Users, Settings, LogOut, Menu, X, Leaf } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Link, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { LayoutDashboard, Package, ShoppingCart, Users, Settings, LogOut, Menu, X, Leaf, Tag, BarChart3, AlertTriangle } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase/config';
 import toast from 'react-hot-toast';
+import { supabase } from '../lib/supabase';
+
+import AdminProducts from './AdminProducts';
+import AdminOrders from './AdminOrders';
+import AdminCustomers from './AdminCustomers';
+import AdminAnalytics from './AdminAnalytics';
+import AdminCoupons from './AdminCoupons';
+import AdminInventory from './AdminInventory';
+import AdminSettings from './AdminSettings';
+
+interface DashboardStats {
+  totalOrders: number;
+  totalRevenue: number;
+  totalProducts: number;
+  lowStock: number;
+  totalCustomers: number;
+  unreadAlerts: number;
+}
 
 function Dashboard() {
-  const stats = [
-    { label: 'Total Orders', value: '156', change: '+12%', icon: ShoppingCart, color: 'bg-blue-500' },
-    { label: 'Revenue', value: '₹45,230', change: '+8%', icon: LayoutDashboard, color: 'bg-green-500' },
-    { label: 'Products', value: '24', change: '+2', icon: Package, color: 'bg-maroon-500' },
-    { label: 'Customers', value: '89', change: '+15', icon: Users, color: 'bg-gold-500' },
-  ];
+  const [stats, setStats] = useState<DashboardStats>({ totalOrders: 0, totalRevenue: 0, totalProducts: 0, lowStock: 0, totalCustomers: 0, unreadAlerts: 0 });
+  const [recentOrders, setRecentOrders] = useState<{ order_number: string; total_amount: number; status: string; created_at: string }[]>([]);
 
-  const recentOrders = [
-    { id: 'ROA-001', customer: 'Rahul K.', amount: 599, status: 'delivered' },
-    { id: 'ROA-002', customer: 'Priya M.', amount: 899, status: 'shipped' },
-    { id: 'ROA-003', customer: 'Anil S.', amount: 349, status: 'confirmed' },
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const [ordersRes, productsRes, customersRes, alertsRes] = await Promise.all([
+          supabase.from('orders').select('total_amount, delivery_charge, status, created_at, order_number').order('created_at', { ascending: false }).limit(5),
+          supabase.from('products').select('stock_quantity, status'),
+          supabase.from('users').select('id').eq('role', 'customer'),
+          supabase.from('inventory_alerts').select('id').eq('is_read', false),
+        ]);
+
+        const orders = ordersRes.data || [];
+        const products = productsRes.data || [];
+
+        setStats({
+          totalOrders: orders.length > 0 ? (await supabase.from('orders').select('id', { count: 'exact', head: true })).count || 0 : 0,
+          totalRevenue: orders.filter((o) => o.status !== 'cancelled').reduce((s, o) => s + o.total_amount + o.delivery_charge, 0),
+          totalProducts: products.length,
+          lowStock: products.filter((p) => p.stock_quantity > 0 && p.stock_quantity <= 10).length,
+          totalCustomers: customersRes.data?.length || 0,
+          unreadAlerts: alertsRes.data?.length || 0,
+        });
+
+        setRecentOrders(orders.slice(0, 5));
+      } catch {
+        // Graceful degradation
+      }
+    };
+    fetchStats();
+  }, []);
+
+  const statCards = [
+    { label: 'Total Revenue', value: `₹${stats.totalRevenue.toLocaleString()}`, icon: LayoutDashboard, color: 'bg-green-500' },
+    { label: 'Total Orders', value: stats.totalOrders.toString(), icon: ShoppingCart, color: 'bg-blue-500' },
+    { label: 'Products', value: stats.totalProducts.toString(), sub: `${stats.lowStock} low stock`, icon: Package, color: 'bg-maroon-700' },
+    { label: 'Customers', value: stats.totalCustomers.toString(), icon: Users, color: 'bg-gold-500' },
   ];
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Dashboard</h1>
+      <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat, i) => (
+        {statCards.map((stat, i) => (
           <div key={i} className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
             <div className="flex items-center justify-between mb-3">
               <div className={`w-10 h-10 ${stat.color} rounded-lg flex items-center justify-center`}><stat.icon size={20} className="text-white" /></div>
-              <span className="text-sm text-green-600 font-medium">{stat.change}</span>
+              {stat.sub && <span className="text-xs text-yellow-600 font-medium">{stat.sub}</span>}
             </div>
             <p className="text-2xl font-bold text-gray-800">{stat.value}</p>
             <p className="text-sm text-gray-500">{stat.label}</p>
@@ -36,25 +81,36 @@ function Dashboard() {
         ))}
       </div>
 
+      {stats.unreadAlerts > 0 && (
+        <Link to="/admin/inventory" className="flex items-center gap-3 p-4 bg-yellow-50 border border-yellow-200 rounded-xl hover:bg-yellow-100 transition">
+          <AlertTriangle size={20} className="text-yellow-600" />
+          <span className="text-yellow-800 font-medium">{stats.unreadAlerts} unread inventory alert{stats.unreadAlerts > 1 ? 's' : ''}</span>
+        </Link>
+      )}
+
       <div className="grid lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <h2 className="font-semibold mb-4">Recent Orders</h2>
-          <div className="space-y-3">
-            {recentOrders.map((order) => (
-              <div key={order.id} className="flex items-center justify-between py-2 border-b last:border-0">
-                <div><p className="font-medium">{order.id}</p><p className="text-sm text-gray-500">{order.customer}</p></div>
-                <div className="text-right"><p className="font-semibold">₹{order.amount}</p><span className={`text-xs px-2 py-1 rounded-full ${order.status === 'delivered' ? 'bg-green-100 text-green-700' : order.status === 'shipped' ? 'bg-blue-100 text-blue-700' : 'bg-warm-100 text-warm-700'}`}>{order.status}</span></div>
-              </div>
-            ))}
-          </div>
+          {recentOrders.length === 0 ? (
+            <p className="text-gray-400 text-center py-8">No orders yet</p>
+          ) : (
+            <div className="space-y-3">
+              {recentOrders.map((order) => (
+                <div key={order.order_number} className="flex items-center justify-between py-2 border-b last:border-0">
+                  <div><p className="font-medium">#{order.order_number}</p><p className="text-sm text-gray-500">{new Date(order.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</p></div>
+                  <div className="text-right"><p className="font-semibold">₹{order.total_amount + order.delivery_charge}</p><span className={`text-xs px-2 py-1 rounded-full ${order.status === 'delivered' ? 'bg-green-100 text-green-700' : order.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>{order.status}</span></div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <h2 className="font-semibold mb-4">Quick Actions</h2>
           <div className="grid grid-cols-2 gap-3">
-            <Link to="/admin/products" className="flex flex-col items-center gap-2 p-4 bg-warm-50 rounded-lg hover:bg-warm-100 transition"><Package className="text-maroon-700" size={24} /><span className="text-sm font-medium">Manage Products</span></Link>
-            <Link to="/admin/orders" className="flex flex-col items-center gap-2 p-4 bg-warm-50 rounded-lg hover:bg-warm-100 transition"><ShoppingCart className="text-maroon-700" size={24} /><span className="text-sm font-medium">View Orders</span></Link>
-            <Link to="/admin/customers" className="flex flex-col items-center gap-2 p-4 bg-warm-50 rounded-lg hover:bg-warm-100 transition"><Users className="text-maroon-700" size={24} /><span className="text-sm font-medium">Customers</span></Link>
-            <Link to="/admin/settings" className="flex flex-col items-center gap-2 p-4 bg-warm-50 rounded-lg hover:bg-warm-100 transition"><Settings className="text-maroon-700" size={24} /><span className="text-sm font-medium">Settings</span></Link>
+            <Link to="/admin/products" className="flex flex-col items-center gap-2 p-4 bg-warm-50 rounded-lg hover:bg-warm-100 transition"><Package className="text-maroon-700" size={24} /><span className="text-sm font-medium">Products</span></Link>
+            <Link to="/admin/orders" className="flex flex-col items-center gap-2 p-4 bg-warm-50 rounded-lg hover:bg-warm-100 transition"><ShoppingCart className="text-maroon-700" size={24} /><span className="text-sm font-medium">Orders</span></Link>
+            <Link to="/admin/coupons" className="flex flex-col items-center gap-2 p-4 bg-warm-50 rounded-lg hover:bg-warm-100 transition"><Tag className="text-maroon-700" size={24} /><span className="text-sm font-medium">Coupons</span></Link>
+            <Link to="/admin/inventory" className="flex flex-col items-center gap-2 p-4 bg-warm-50 rounded-lg hover:bg-warm-100 transition"><AlertTriangle className="text-maroon-700" size={24} /><span className="text-sm font-medium">Inventory</span></Link>
           </div>
         </div>
       </div>
@@ -62,23 +118,14 @@ function Dashboard() {
   );
 }
 
-function ProductsList() {
-  return (<div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100"><div className="flex items-center justify-between mb-4"><h2 className="text-xl font-bold">Products</h2><button className="px-4 py-2 bg-maroon-700 text-white rounded-lg font-medium hover:bg-maroon-800">Add Product</button></div><p className="text-gray-500">Product management coming soon...</p></div>);
-}
-
-function OrdersList() {
-  return (<div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100"><h2 className="text-xl font-bold mb-4">Orders</h2><p className="text-gray-500">Order management coming soon...</p></div>);
-}
-
-function SettingsPage() {
-  return (<div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100"><h2 className="text-xl font-bold mb-4">Settings</h2><p className="text-gray-500">Store settings coming soon...</p></div>);
-}
-
 const navItems = [
   { path: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { path: '/admin/products', label: 'Products', icon: Package },
   { path: '/admin/orders', label: 'Orders', icon: ShoppingCart },
   { path: '/admin/customers', label: 'Customers', icon: Users },
+  { path: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
+  { path: '/admin/coupons', label: 'Coupons', icon: Tag },
+  { path: '/admin/inventory', label: 'Inventory', icon: AlertTriangle },
   { path: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -87,6 +134,7 @@ export default function AdminApp() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = async () => {
     try {
@@ -113,7 +161,7 @@ export default function AdminApp() {
         </div>
         <nav className="p-4 space-y-1">
           {navItems.map((item) => (
-            <Link key={item.path} to={item.path} onClick={() => setSidebarOpen(false)} className="flex items-center gap-3 px-4 py-3 rounded-lg transition hover:bg-maroon-800">
+            <Link key={item.path} to={item.path} onClick={() => setSidebarOpen(false)} className={`flex items-center gap-3 px-4 py-3 rounded-lg transition hover:bg-maroon-800 ${location.pathname === item.path || (item.end && location.pathname === '/admin') ? 'bg-maroon-800' : ''}`}>
               <item.icon size={20} /><span>{item.label}</span>
             </Link>
           ))}
@@ -136,10 +184,13 @@ export default function AdminApp() {
         <main className="p-4 lg:p-6">
           <Routes>
             <Route index element={<Dashboard />} />
-            <Route path="products" element={<ProductsList />} />
-            <Route path="orders" element={<OrdersList />} />
-            <Route path="customers" element={<div className="bg-white rounded-xl p-6"><h2 className="text-xl font-bold mb-4">Customers</h2><p className="text-gray-500">Customer management coming soon...</p></div>} />
-            <Route path="settings" element={<SettingsPage />} />
+            <Route path="products" element={<AdminProducts />} />
+            <Route path="orders" element={<AdminOrders />} />
+            <Route path="customers" element={<AdminCustomers />} />
+            <Route path="analytics" element={<AdminAnalytics />} />
+            <Route path="coupons" element={<AdminCoupons />} />
+            <Route path="inventory" element={<AdminInventory />} />
+            <Route path="settings" element={<AdminSettings />} />
           </Routes>
         </main>
       </div>
