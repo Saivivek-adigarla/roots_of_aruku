@@ -3,30 +3,56 @@ import { Link } from 'react-router-dom';
 import { Eye, ChevronRight, Calendar, MapPin, CreditCard, ShoppingBag } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
+import { fetchUserOrders } from '../services/database';
 import { secureStorage } from '../utils/security';
-import type { Order } from '../types';
+
+interface DbOrder {
+  id: string;
+  order_number: string;
+  status: string;
+  total_amount: number;
+  delivery_charge: number;
+  payment_method: string;
+  payment_status: string;
+  address_snapshot: { name: string; phone: string; address: string; city: string; state: string; pincode: string };
+  created_at: string;
+  order_items: { product_name: string; weight: string; quantity: number; unit_price: number; total_price: number }[];
+}
 
 export default function MyOrders() {
   const user = useAuthStore((s) => s.user);
   const navigate = useNavigate();
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<DbOrder[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) {
       navigate('/login');
       return;
     }
-    const lastOrder = secureStorage.get<Order>('lastOrder');
-    const allOrders = secureStorage.get<Order[]>('demoOrders') || [];
-    if (lastOrder) {
-      const exists = allOrders.find((o) => o.orderId === lastOrder.orderId);
-      const updated = exists ? allOrders : [...allOrders, lastOrder];
-      secureStorage.set('demoOrders', updated);
-      setOrders([lastOrder, ...updated.filter((o) => o.orderId !== lastOrder.orderId)]);
-    } else {
-      setOrders(allOrders);
-    }
+    loadOrders();
   }, [user, navigate]);
+
+  const loadOrders = async () => {
+    if (!user) return;
+    try {
+      const dbOrders = await fetchUserOrders(user.uid);
+      setOrders(dbOrders);
+    } catch {
+      // Fallback: try localStorage
+      const lastOrder = secureStorage.get<DbOrder>('lastOrder');
+      const allOrders = secureStorage.get<DbOrder[]>('demoOrders') || [];
+      if (lastOrder) {
+        const exists = allOrders.find((o) => o.order_number === lastOrder.order_number);
+        const updated = exists ? allOrders : [lastOrder, ...allOrders];
+        setOrders(updated);
+      } else {
+        setOrders(allOrders);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -39,13 +65,12 @@ export default function MyOrders() {
     }
   };
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
-  };
+  const formatDate = (dateStr: string) =>
+    new Date(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  if (loading) {
+    return <div className="max-w-7xl mx-auto px-4 py-8 text-center"><div className="animate-spin w-10 h-10 border-4 border-maroon-700 border-t-transparent rounded-full mx-auto" /></div>;
+  }
 
   if (orders.length === 0) {
     return (
@@ -53,9 +78,7 @@ export default function MyOrders() {
         <ShoppingBag size={64} className="text-gray-300 mx-auto mb-4" />
         <h2 className="text-xl font-semibold text-gray-800 mb-2">No orders yet</h2>
         <p className="text-gray-500 mb-6">Start shopping to see your orders here</p>
-        <Link to="/products" className="inline-block bg-maroon-700 text-white px-8 py-3 rounded-full font-semibold">
-          Browse Products
-        </Link>
+        <Link to="/products" className="inline-block bg-maroon-700 text-white px-8 py-3 rounded-full font-semibold">Browse Products</Link>
       </div>
     );
   }
@@ -63,20 +86,18 @@ export default function MyOrders() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-gray-800 mb-6">My Orders</h1>
-
       <div className="space-y-4">
         {orders.map((order) => (
-          <div key={order.orderId} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div key={order.order_number} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="bg-gray-50 px-4 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-4">
                 <div>
                   <p className="text-xs text-gray-500">Order ID</p>
-                  <p className="font-semibold text-maroon-700">{order.orderId}</p>
+                  <p className="font-semibold text-maroon-700">{order.order_number}</p>
                 </div>
                 <div className="h-8 w-px bg-gray-200" />
                 <div className="flex items-center gap-1 text-sm text-gray-600">
-                  <Calendar size={14} />
-                  {formatDate(order.createdAt)}
+                  <Calendar size={14} /> {formatDate(order.created_at)}
                 </div>
               </div>
               <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${getStatusColor(order.status)}`}>
@@ -86,26 +107,16 @@ export default function MyOrders() {
 
             <div className="p-4">
               <div className="flex flex-wrap gap-4 items-start">
-                <div className="flex gap-4 flex-1 min-w-0">
-                  {order.items.slice(0, 2).map((item, idx) => (
-                    <img
-                      key={idx}
-                      src={item.product.images?.[0] || 'https://images.pexels.com/photos/894695/pexels-photo-894695.jpeg'}
-                      alt={item.product.name}
-                      className="w-16 h-16 object-cover rounded"
-                    />
-                  ))}
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{order.items.map(i => i.product.name).join(', ')}</p>
-                    <p className="text-sm text-gray-500">{order.items.reduce((s, i) => s + i.qty, 0)} items</p>
-                    <div className="flex items-center gap-1 text-sm text-gray-500 mt-1">
-                      <MapPin size={14} /> {order.address.city}
-                    </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{order.order_items?.map((i) => i.product_name).join(', ') || 'Order items'}</p>
+                  <p className="text-sm text-gray-500">{order.order_items?.reduce((s, i) => s + i.quantity, 0) || 0} items</p>
+                  <div className="flex items-center gap-1 text-sm text-gray-500 mt-1">
+                    <MapPin size={14} /> {order.address_snapshot?.city || 'N/A'}
                   </div>
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-gray-500">Total Amount</p>
-                  <p className="text-xl font-bold text-maroon-700">₹{order.total}</p>
+                  <p className="text-xl font-bold text-maroon-700">₹{order.total_amount + order.delivery_charge}</p>
                 </div>
               </div>
             </div>
@@ -113,12 +124,9 @@ export default function MyOrders() {
             <div className="border-t border-gray-100 px-4 py-3 flex items-center justify-between bg-gray-50">
               <div className="flex items-center gap-2 text-sm text-gray-600">
                 <CreditCard size={14} />
-                {order.status === 'cod' ? 'Cash on Delivery' : 'Paid Online'}
+                {order.payment_method === 'cod' ? 'Cash on Delivery' : `Paid Online${order.payment_status === 'paid' ? '' : ` (${order.payment_status})`}`}
               </div>
-              <Link
-                to={`/order/${order.orderId}`}
-                className="flex items-center gap-1 text-maroon-700 font-medium hover:underline"
-              >
+              <Link to={`/order/${order.order_number}`} className="flex items-center gap-1 text-maroon-700 font-medium hover:underline">
                 <Eye size={16} /> Track Order <ChevronRight size={16} />
               </Link>
             </div>

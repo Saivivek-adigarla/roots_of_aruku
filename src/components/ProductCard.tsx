@@ -15,10 +15,12 @@ export default function ProductCard({ product }: Props) {
   const { toggle, has } = useWishlistStore();
   const wishlisted = has(product.id);
   const discount = discountPct(product.mrp, product.offerPrice);
+  const inStock = product.stockQuantity !== undefined ? product.stockQuantity > 0 : product.status === 'active';
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (!inStock) { toast.error('Product is out of stock'); return; }
     addItem(product);
     toast.success('Added to cart!');
   };
@@ -42,6 +44,11 @@ export default function ProductCard({ product }: Props) {
             {discount}% OFF
           </span>
         )}
+        {!inStock && (
+          <span className="absolute top-2 left-2 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+            Out of Stock
+          </span>
+        )}
         <button
           onClick={handleToggleWishlist}
           className={`absolute top-2 right-2 p-1.5 rounded-full bg-white/80 hover:bg-white transition ${wishlisted ? 'text-red-500' : 'text-gray-400'}`}
@@ -60,9 +67,10 @@ export default function ProductCard({ product }: Props) {
 
         <button
           onClick={handleAddToCart}
-          className="mt-2 w-full flex items-center justify-center gap-1.5 bg-maroon-700 text-white py-2 rounded-lg text-sm font-medium hover:bg-maroon-800 transition"
+          disabled={!inStock}
+          className="mt-2 w-full flex items-center justify-center gap-1.5 bg-maroon-700 text-white py-2 rounded-lg text-sm font-medium hover:bg-maroon-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <ShoppingCart size={14} /> Add to Cart
+          <ShoppingCart size={14} /> {inStock ? 'Add to Cart' : 'Out of Stock'}
         </button>
       </div>
     </Link>

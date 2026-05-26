@@ -1,14 +1,23 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, ShoppingCart, Trash2 } from 'lucide-react';
 import { useWishlistStore } from '../store/wishlistStore';
 import { useCartStore } from '../store/cartStore';
+import { useAuthStore } from '../store/authStore';
 import { discountPct } from '../utils/helpers';
 import toast from 'react-hot-toast';
 import { Product } from '../types';
 
 export default function Wishlist() {
-  const { items, remove } = useWishlistStore();
+  const { items, remove, syncFromDb } = useWishlistStore();
   const addItem = useCartStore((s) => s.addItem);
+  const user = useAuthStore((s) => s.user);
+
+  useEffect(() => {
+    if (user?.uid) {
+      syncFromDb(user.uid);
+    }
+  }, [user, syncFromDb]);
 
   const handleAddToCart = (product: Product) => {
     addItem(product);
@@ -54,16 +63,10 @@ export default function Wishlist() {
                 <span className="text-xs text-green-600">{discountPct(product.mrp, product.offerPrice)}% off</span>
               </div>
               <div className="flex gap-2">
-                <button
-                  onClick={() => handleAddToCart(product)}
-                  className="flex-1 flex items-center justify-center gap-1 bg-maroon-700 text-white py-2 rounded-lg text-sm font-medium hover:bg-maroon-800 transition"
-                >
+                <button onClick={() => handleAddToCart(product)} className="flex-1 flex items-center justify-center gap-1 bg-maroon-700 text-white py-2 rounded-lg text-sm font-medium hover:bg-maroon-800 transition">
                   <ShoppingCart size={16} /> Add to Cart
                 </button>
-                <button
-                  onClick={() => handleRemove(product.id)}
-                  className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
-                >
+                <button onClick={() => handleRemove(product.id)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition">
                   <Trash2 size={18} />
                 </button>
               </div>

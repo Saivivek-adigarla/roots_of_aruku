@@ -10,6 +10,7 @@ import ReviewForm from '../components/ReviewForm';
 import toast from 'react-hot-toast';
 import { Product } from '../types';
 import { supabase } from '../lib/supabase';
+import { fetchProductById } from '../services/database';
 
 interface Review {
   id: string;
@@ -30,16 +31,32 @@ export default function ProductDetail() {
   const [currentImage, setCurrentImage] = useState(0);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [avgRating, setAvgRating] = useState(0);
-  const [dbProduct, setDbProduct] = useState<{ stock_quantity: number; status: string } | null>(null);
+  const [product, setProduct] = useState<Product | null>(null);
   const addItem = useCartStore((s) => s.addItem);
   const { toggle, has } = useWishlistStore();
 
-  const product = seedProducts.find((p) => p.id === id);
+  useEffect(() => {
+    loadProduct();
+  }, [id]);
+
+  const loadProduct = async () => {
+    if (!id) return;
+    // Try Supabase first
+    try {
+      const dbProd = await fetchProductById(id);
+      if (dbProd) {
+        setProduct(dbProd);
+        return;
+      }
+    } catch { /* fallback */ }
+    // Fallback to seed data
+    const seedProd = seedProducts.find((p) => p.id === id);
+    if (seedProd) setProduct(seedProd);
+  };
 
   useEffect(() => {
     if (id) {
       fetchReviews();
-      fetchProductStock();
     }
   }, [id]);
 
@@ -70,19 +87,6 @@ export default function ProductDetail() {
     }
   };
 
-  const fetchProductStock = async () => {
-    try {
-      const { data } = await supabase
-        .from('products')
-        .select('stock_quantity, status')
-        .eq('id', id)
-        .maybeSingle();
-      if (data) setDbProduct(data);
-    } catch {
-      // Fallback
-    }
-  };
-
   if (!product) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-16 text-center">
@@ -95,7 +99,7 @@ export default function ProductDetail() {
 
   const wishlisted = has(product.id);
   const discount = discountPct(product.mrp, product.offerPrice);
-  const inStock = dbProduct ? dbProduct.stock_quantity > 0 : product.status === 'active';
+  const inStock = product.stockQuantity !== undefined ? product.stockQuantity > 0 : product.status === 'active';
 
   const handleAddToCart = () => {
     addItem(product, qty);

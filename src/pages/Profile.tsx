@@ -6,6 +6,7 @@ import { signOut } from 'firebase/auth';
 import { auth } from '../firebase/config';
 import toast from 'react-hot-toast';
 import { isValidName, sanitizeHtml } from '../utils/security';
+import { updateUserProfile } from '../services/database';
 
 export default function Profile() {
   const user = useAuthStore((s) => s.user);
@@ -14,6 +15,7 @@ export default function Profile() {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(user?.name || '');
   const [phone, setPhone] = useState(user?.phone || '');
+  const [saving, setSaving] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -26,14 +28,30 @@ export default function Profile() {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim() || !isValidName(name)) {
       toast.error('Please enter a valid name');
       return;
     }
-    setUser({ ...user!, name: sanitizeHtml(name.trim()), phone });
-    setEditing(false);
-    toast.success('Profile updated');
+    setSaving(true);
+    try {
+      const sanitizedName = sanitizeHtml(name.trim());
+      const sanitizedPhone = phone.trim();
+
+      if (user?.uid) {
+        await updateUserProfile(user.uid, { name: sanitizedName, phone: sanitizedPhone });
+      }
+      setUser({ ...user!, name: sanitizedName, phone: sanitizedPhone });
+      setEditing(false);
+      toast.success('Profile updated');
+    } catch {
+      // Fallback: update locally
+      setUser({ ...user!, name: sanitizeHtml(name.trim()), phone });
+      setEditing(false);
+      toast.success('Profile updated locally');
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (!user) {
@@ -86,8 +104,8 @@ export default function Profile() {
               ) : (
                 <div className="flex gap-2">
                   <button onClick={() => setEditing(false)} className="px-3 py-1 border border-gray-300 rounded text-sm">Cancel</button>
-                  <button onClick={handleSave} className="flex items-center gap-1 px-3 py-1 bg-maroon-700 text-white rounded text-sm">
-                    <Save size={14} /> Save
+                  <button onClick={handleSave} disabled={saving} className="flex items-center gap-1 px-3 py-1 bg-maroon-700 text-white rounded text-sm disabled:opacity-50">
+                    <Save size={14} /> {saving ? 'Saving...' : 'Save'}
                   </button>
                 </div>
               )}

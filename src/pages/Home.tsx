@@ -1,11 +1,22 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
 import { SEED_PRODUCTS } from '../data/products';
+import { fetchProducts } from '../services/database';
+import type { Product } from '../types';
 
-const products = SEED_PRODUCTS.slice(0, 4).map((p, i) => ({ id: String(i), ...p }));
+const fallbackProducts: Product[] = SEED_PRODUCTS.slice(0, 4).map((p, i) => ({ id: String(i), ...p }));
 
 export default function Home() {
+  const [featured, setFeatured] = useState<Product[]>(fallbackProducts);
+
+  useEffect(() => {
+    fetchProducts({ featured: true, status: 'active' })
+      .then(setFeatured)
+      .catch(() => setFeatured(fallbackProducts));
+  }, []);
+
   return (
     <div className="pb-12">
       <div className="relative h-80 bg-gradient-to-r from-maroon-700 to-maroon-600 flex items-center justify-center text-center text-white overflow-hidden">
@@ -18,11 +29,11 @@ export default function Home() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-12">
-        <div className="bg-maroon-700 text-gold-400 text-center py-3 px-4 rounded-lg mb-8">LAUNCHING OFFER — Up to 33% OFF on all products!</div>
+        <div className="bg-maroon-700 text-gold-400 text-center py-3 px-4 rounded-lg mb-8">LAUNCHING OFFER -- Up to 33% OFF on all products!</div>
 
         <h2 className="text-2xl font-bold text-gray-800 mb-4">Featured Products</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-12">
-          {products.map(p => <ProductCard key={p.id} product={p} />)}
+          {featured.slice(0, 4).map((p) => <ProductCard key={p.id} product={p} />)}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">

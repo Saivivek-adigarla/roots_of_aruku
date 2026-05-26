@@ -20,6 +20,7 @@ import {
   generateSecureId,
 } from '../utils/security';
 import { supabase } from '../lib/supabase';
+import { createOrder, fetchAddresses, saveAddress as saveDbAddress } from '../services/database';
 
 export default function Checkout() {
   const { items, clearCart } = useCartStore();
@@ -49,9 +50,22 @@ export default function Checkout() {
   useEffect(() => {
     setCsrfToken(generateCsrfToken());
     secureStorage.set('checkout_csrf', csrfToken);
+    loadAddresses();
+  }, []);
+
+  const loadAddresses = async () => {
+    if (user?.uid) {
+      try {
+        const dbAddresses = await fetchAddresses(user.uid);
+        if (dbAddresses.length > 0) {
+          setAddresses(dbAddresses);
+          return;
+        }
+      } catch { /* fallback */ }
+    }
     const savedAddresses = secureStorage.get<Address[]>('addresses');
     if (savedAddresses) setAddresses(savedAddresses);
-  }, []);
+  };
 
   const validateCartItems = useCallback(() => {
     for (const item of items) {
@@ -104,7 +118,7 @@ export default function Checkout() {
     toast.success('Coupon removed');
   };
 
-  const handleAddressSave = (addr: Address) => {
+  const handleAddressSave = async (addr: Address) => {
     if (!isValidName(addr.name)) { toast.error('Invalid name'); return; }
     if (!isValidPhone(addr.phone)) { toast.error('Invalid phone'); return; }
     if (!isValidPincode(addr.pincode)) { toast.error('Invalid pincode'); return; }
@@ -116,9 +130,17 @@ export default function Checkout() {
       landmark: addr.landmark ? sanitizeHtml(addr.landmark) : '',
     };
 
+    // Try saving to Supabase if user is authenticated
+    if (user?.uid) {
+      try {
+        const saved = await saveDbAddress(user.uid, sanitizedAddress);
+        sanitizedAddress.id = saved.id;
+      } catch { /* fallback */ }
+    }
+
     setAddresses((prev) => {
       const existing = prev.find((a) => a.id === addr.id);
-      const updated = existing ? prev.map((a) => (a.id === addr.id ? sanitizedAddress : a)) : [...prev, sanitizedAddress];
+      const updated = existing ? prev.map((a) => (a.id === sanitizedAddress.id ? sanitizedAddress : a)) : [...prev, sanitizedAddress];
       secureStorage.set('addresses', updated);
       return updated;
     });
@@ -148,6 +170,53 @@ export default function Checkout() {
     setLoading(true);
     const orderId = generateSecureId('ROA');
 
+    const saveOrderToDb = async (paymentId?: string, status: string = 'paid') => {
+      if (user?.uid) {
+        try {
+          await createOrder({
+            userId: user.uid,
+            orderNumber: orderId,
+            items: items.map((item) => ({
+              productId: item.product.id,
+              productName: sanitizeHtml(item.product.name),
+              weight: item.product.weight,
+              quantity: item.qty,
+              unitPrice: item.product.offerPrice,
+              totalPrice: item.product.offerPrice * item.qty,
+            })),
+            totalAmount: subtotal - couponDiscount,
+            deliveryCharge,
+            paymentMethod: paymentMethod === 'cod' ? 'cod' : 'razorpay',
+            paymentStatus: status,
+            paymentId,
+            address: selectedAddress!,
+            couponCode: appliedCoupon?.code,
+          });
+        } catch {
+          // Fallback to localStorage
+          secureStorage.set('lastOrder', {
+            orderId,
+            items: items.map((item) => ({ product: { id: item.product.id, name: sanitizeHtml(item.product.name), weight: item.product.weight, images: item.product.images, offerPrice: item.product.offerPrice }, qty: item.qty })),
+            total: grandTotal,
+            address: selectedAddress,
+            status,
+            paymentId,
+            createdAt: new Date().toISOString(),
+          });
+        }
+      } else {
+        secureStorage.set('lastOrder', {
+          orderId,
+          items: items.map((item) => ({ product: { id: item.product.id, name: sanitizeHtml(item.product.name), weight: item.product.weight, images: item.product.images, offerPrice: item.product.offerPrice }, qty: item.qty })),
+          total: grandTotal,
+          address: selectedAddress,
+          status,
+          paymentId,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    };
+
     if (paymentMethod === 'razorpay') {
       try {
         await loadRazorpay();
@@ -157,18 +226,10 @@ export default function Checkout() {
           currency: 'INR',
           name: 'Roots of Araku',
           description: 'Order Payment',
-          handler: (response: { razorpay_payment_id: string }) => {
+          handler: async (response: { razorpay_payment_id: string }) => {
             if (!response.razorpay_payment_id) { toast.error('Payment verification failed'); return; }
             clearCart();
-            secureStorage.set('lastOrder', {
-              orderId,
-              items: items.map((item) => ({ product: { id: item.product.id, name: sanitizeHtml(item.product.name), weight: item.product.weight, images: item.product.images, offerPrice: item.product.offerPrice }, qty: item.qty })),
-              total: grandTotal,
-              address: selectedAddress,
-              status: 'paid',
-              paymentId: response.razorpay_payment_id,
-              createdAt: new Date().toISOString(),
-            });
+            await saveOrderToDb(response.razorpay_payment_id, 'paid');
             secureStorage.remove('checkout_csrf');
             navigate(`/order-success?id=${orderId}`);
           },
@@ -181,14 +242,7 @@ export default function Checkout() {
       finally { setLoading(false); }
     } else {
       clearCart();
-      secureStorage.set('lastOrder', {
-        orderId,
-        items: items.map((item) => ({ product: { id: item.product.id, name: sanitizeHtml(item.product.name), weight: item.product.weight, images: item.product.images, offerPrice: item.product.offerPrice }, qty: item.qty })),
-        total: grandTotal,
-        address: selectedAddress,
-        status: 'cod',
-        createdAt: new Date().toISOString(),
-      });
+      await saveOrderToDb(undefined, 'pending');
       secureStorage.remove('checkout_csrf');
       setLoading(false);
       navigate(`/order-success?id=${orderId}&cod=true`);

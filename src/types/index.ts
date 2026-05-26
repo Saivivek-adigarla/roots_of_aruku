@@ -35,6 +35,7 @@ export interface Product {
   featured: boolean;
   images: string[];
   emoji: string;
+  stockQuantity?: number;
   createdAt?: unknown;
 }
 
