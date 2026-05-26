@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CreditCard, Truck, MapPin, Check, Loader2, Wallet, Package, Shield, Tag, X } from 'lucide-react';
+import { QrCode, MapPin, Check, Loader2, Shield, Tag, X, Smartphone, MessageCircle, Package, Copy, CheckCircle } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { getDeliveryCharge, DELIVERY_FREE_THRESHOLD } from '../utils/helpers';
 import type { Address } from '../types';
 import AddressForm from '../components/AddressForm';
-import { loadRazorpay } from '../utils/razorpay';
 import toast from 'react-hot-toast';
 import {
   isValidName,
@@ -21,6 +20,8 @@ import {
 } from '../utils/security';
 import { supabase } from '../lib/supabase';
 import { createOrder, fetchAddresses, saveAddress as saveDbAddress } from '../services/database';
+import { generatePaymentQR, MERCHANT_UPI, openUPIApp } from '../utils/upiPayment';
+import { openWhatsApp, buildOrderMessage } from '../utils/whatsapp';
 
 export default function Checkout() {
   const { items, clearCart } = useCartStore();
@@ -30,12 +31,14 @@ export default function Checkout() {
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
   const [showAddressForm, setShowAddressForm] = useState(false);
   const [addresses, setAddresses] = useState<Address[]>([]);
-  const [paymentMethod, setPaymentMethod] = useState<'razorpay' | 'cod'>('razorpay');
   const [loading, setLoading] = useState(false);
   const [csrfToken, setCsrfToken] = useState('');
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number; type: 'percentage' | 'flat' } | null>(null);
   const [couponLoading, setCouponLoading] = useState(false);
+  const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
+  const [qrLoading, setQrLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const subtotal = items.reduce((sum, item) => sum + item.product.offerPrice * item.qty, 0);
   const discountAmt = items.reduce((sum, item) => sum + (item.product.mrp - item.product.offerPrice) * item.qty, 0);
@@ -95,9 +98,9 @@ export default function Checkout() {
         .gte('valid_until', new Date().toISOString())
         .maybeSingle();
       if (error) throw error;
-      if (!data) { toast.error('Invalid or expired coupon code'); return; }
+      if (!data) { toast.error('Invalid or expired coupon'); return; }
       if (data.min_order_value > subtotal) { toast.error(`Minimum order ₹${data.min_order_value} required`); return; }
-      if (data.usage_limit && data.used_count >= data.usage_limit) { toast.error('Coupon usage limit reached'); return; }
+      if (data.usage_limit && data.used_count >= data.usage_limit) { toast.error('Coupon limit reached'); return; }
 
       const discount = data.discount_type === 'percentage'
         ? Math.min(Math.round(subtotal * data.discount_value / 100), data.max_discount || Infinity)
@@ -130,7 +133,6 @@ export default function Checkout() {
       landmark: addr.landmark ? sanitizeHtml(addr.landmark) : '',
     };
 
-    // Try saving to Supabase if user is authenticated
     if (user?.uid) {
       try {
         const saved = await saveDbAddress(user.uid, sanitizedAddress);
@@ -149,9 +151,26 @@ export default function Checkout() {
     setStep(2);
   };
 
+  const generateQR = async () => {
+    setQrLoading(true);
+    try {
+      const qr = await generatePaymentQR({
+        upiId: MERCHANT_UPI.upiId,
+        merchantName: MERCHANT_UPI.merchantName,
+        amount: grandTotal,
+        transactionRef: generateSecureId('TXN'),
+      });
+      setQrCodeUrl(qr);
+    } catch {
+      toast.error('Failed to generate QR code');
+    } finally {
+      setQrLoading(false);
+    }
+  };
+
   const validatePayment = async (): Promise<boolean> => {
     const rateCheck = checkRateLimit('checkout_payment', 5, 300000);
-    if (!rateCheck.allowed) { toast.error('Too many payment attempts'); return false; }
+    if (!rateCheck.allowed) { toast.error('Too many attempts'); return false; }
 
     const storedToken = secureStorage.get<string>('checkout_csrf');
     if (!validateCsrfToken(csrfToken, storedToken || '')) { toast.error('Security validation failed'); return false; }
@@ -159,18 +178,19 @@ export default function Checkout() {
     if (!selectedAddress) { toast.error('Select delivery address'); return false; }
 
     const expectedTotal = items.reduce((sum, item) => sum + item.product.offerPrice * item.qty, 0) - couponDiscount + deliveryCharge;
-    if (grandTotal !== Math.max(0, expectedTotal)) { toast.error('Price mismatch detected'); return false; }
+    if (grandTotal !== Math.max(0, expectedTotal)) { toast.error('Price mismatch'); return false; }
 
     return true;
   };
 
-  const handlePayment = async () => {
+  const handleUPIPay = async () => {
     if (!(await validatePayment())) return;
 
     setLoading(true);
     const orderId = generateSecureId('ROA');
 
-    const saveOrderToDb = async (paymentId?: string, status: string = 'paid') => {
+    // Save order to database
+    const saveOrder = async (paymentStatus: string = 'upi_pending') => {
       if (user?.uid) {
         try {
           await createOrder({
@@ -186,21 +206,18 @@ export default function Checkout() {
             })),
             totalAmount: subtotal - couponDiscount,
             deliveryCharge,
-            paymentMethod: paymentMethod === 'cod' ? 'cod' : 'razorpay',
-            paymentStatus: status,
-            paymentId,
+            paymentMethod: 'upi',
+            paymentStatus,
             address: selectedAddress!,
             couponCode: appliedCoupon?.code,
           });
         } catch {
-          // Fallback to localStorage
           secureStorage.set('lastOrder', {
             orderId,
             items: items.map((item) => ({ product: { id: item.product.id, name: sanitizeHtml(item.product.name), weight: item.product.weight, images: item.product.images, offerPrice: item.product.offerPrice }, qty: item.qty })),
             total: grandTotal,
             address: selectedAddress,
-            status,
-            paymentId,
+            status: paymentStatus,
             createdAt: new Date().toISOString(),
           });
         }
@@ -210,42 +227,44 @@ export default function Checkout() {
           items: items.map((item) => ({ product: { id: item.product.id, name: sanitizeHtml(item.product.name), weight: item.product.weight, images: item.product.images, offerPrice: item.product.offerPrice }, qty: item.qty })),
           total: grandTotal,
           address: selectedAddress,
-          status,
-          paymentId,
+          status: paymentStatus,
           createdAt: new Date().toISOString(),
         });
       }
     };
 
-    if (paymentMethod === 'razorpay') {
-      try {
-        await loadRazorpay();
-        const options = {
-          key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_demo',
-          amount: grandTotal * 100,
-          currency: 'INR',
-          name: 'Roots of Araku',
-          description: 'Order Payment',
-          handler: async (response: { razorpay_payment_id: string }) => {
-            if (!response.razorpay_payment_id) { toast.error('Payment verification failed'); return; }
-            clearCart();
-            await saveOrderToDb(response.razorpay_payment_id, 'paid');
-            secureStorage.remove('checkout_csrf');
-            navigate(`/order-success?id=${orderId}`);
-          },
-          prefill: { name: sanitizeHtml(selectedAddress!.name), email: user?.email || '', contact: selectedAddress!.phone },
-          theme: { color: '#6B1A1A' },
-        };
-        const rzp = new (window as { Razorpay: new (opts: typeof options) => { open: () => void } }).Razorpay(options);
-        rzp.open();
-      } catch { toast.error('Payment initialization failed'); }
-      finally { setLoading(false); }
-    } else {
-      clearCart();
-      await saveOrderToDb(undefined, 'pending');
-      secureStorage.remove('checkout_csrf');
-      setLoading(false);
-      navigate(`/order-success?id=${orderId}&cod=true`);
+    await saveOrder('upi_pending');
+    clearCart();
+    secureStorage.remove('checkout_csrf');
+
+    // Open UPI app on mobile or show QR on desktop
+    const txnRef = generateSecureId('TXN');
+    const upiParams = {
+      upiId: MERCHANT_UPI.upiId,
+      merchantName: MERCHANT_UPI.merchantName,
+      amount: grandTotal,
+      transactionRef: txnRef,
+    };
+
+    // Try to open UPI app directly (works on mobile)
+    const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
+    if (isMobile) {
+      openUPIApp(upiParams);
+    }
+
+    // Redirect to order success with UPI QR code and WhatsApp redirect
+    navigate(`/order-success?id=${orderId}&upi=true`, { state: { qrParams: upiParams } });
+    setLoading(false);
+  };
+
+  const copyUPIId = async () => {
+    try {
+      await navigator.clipboard.writeText(MERCHANT_UPI.upiId);
+      setCopied(true);
+      toast.success('UPI ID copied!');
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error('Copy failed');
     }
   };
 
@@ -263,14 +282,20 @@ export default function Checkout() {
     <div className="max-w-7xl mx-auto px-4 py-8">
       <div className="flex items-center gap-2 mb-6">
         <Shield size={20} className="text-green-600" />
-        <span className="text-sm text-gray-600">Secure checkout with 256-bit encryption</span>
+        <span className="text-sm text-gray-600">Secure checkout — UPI payment only</span>
       </div>
       <h1 className="text-2xl font-bold text-gray-800 mb-6">Checkout</h1>
 
       <div className="flex items-center justify-center gap-4 mb-8">
-        {[{ num: 1, label: 'Address', Icon: MapPin }, { num: 2, label: 'Payment', Icon: CreditCard }, { num: 3, label: 'Confirm', Icon: Check }].map((s) => (
+        {[
+          { num: 1, label: 'Address', Icon: MapPin },
+          { num: 2, label: 'UPI Payment', Icon: QrCode },
+          { num: 3, label: 'Confirm', Icon: Check },
+        ].map((s) => (
           <div key={s.num} className={`flex items-center gap-2 ${step >= s.num ? 'text-maroon-700' : 'text-gray-400'}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step >= s.num ? 'bg-maroon-700 text-white' : 'bg-gray-200'}`}><s.Icon size={16} /></div>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step >= s.num ? 'bg-maroon-700 text-white' : 'bg-gray-200'}`}>
+              <s.Icon size={16} />
+            </div>
             <span className="text-sm font-medium hidden sm:inline">{s.label}</span>
             {s.num < 3 && <div className={`w-12 h-0.5 ${step > s.num ? 'bg-maroon-700' : 'bg-gray-200'}`} />}
           </div>
@@ -299,7 +324,11 @@ export default function Checkout() {
                           <p className="text-gray-600 text-sm">{sanitizeHtml(addr.city)}, {sanitizeHtml(addr.state)} - {addr.pincode}</p>
                           <p className="text-gray-500 text-sm">{addr.phone}</p>
                         </div>
-                        {selectedAddress?.id === addr.id && <div className="w-5 h-5 bg-maroon-700 rounded-full flex items-center justify-center"><Check size={12} className="text-white" /></div>}
+                        {selectedAddress?.id === addr.id && (
+                          <div className="w-5 h-5 bg-maroon-700 rounded-full flex items-center justify-center">
+                            <Check size={12} className="text-white" />
+                          </div>
+                        )}
                       </div>
                     </label>
                   ))}
@@ -311,28 +340,91 @@ export default function Checkout() {
                   <button onClick={() => setShowAddressForm(true)} className="bg-maroon-700 text-white px-6 py-2 rounded-lg font-medium">Add Address</button>
                 </div>
               )}
-              {selectedAddress && <button onClick={() => setStep(2)} className="mt-6 w-full bg-maroon-700 text-white py-3 rounded-lg font-semibold hover:bg-maroon-800">Continue to Payment</button>}
+              {selectedAddress && (
+                <button onClick={() => setStep(2)} className="mt-6 w-full bg-maroon-700 text-white py-3 rounded-lg font-semibold hover:bg-maroon-800 transition">
+                  Continue to Payment
+                </button>
+              )}
             </div>
           )}
 
           {step === 2 && (
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <h2 className="font-semibold text-lg mb-4">Payment Method</h2>
-              <div className="space-y-3">
-                <label className={`border-2 rounded-xl p-4 cursor-pointer flex items-center gap-4 ${paymentMethod === 'razorpay' ? 'border-maroon-700 bg-maroon-50' : 'border-gray-200'}`}>
-                  <input type="radio" checked={paymentMethod === 'razorpay'} onChange={() => setPaymentMethod('razorpay')} className="accent-maroon-700" />
-                  <Wallet size={24} className="text-maroon-700" />
-                  <div><p className="font-semibold">Pay Online</p><p className="text-sm text-gray-500">UPI, Cards, Net Banking</p></div>
-                </label>
-                <label className={`border-2 rounded-xl p-4 cursor-pointer flex items-center gap-4 ${paymentMethod === 'cod' ? 'border-maroon-700 bg-maroon-50' : 'border-gray-200'}`}>
-                  <input type="radio" checked={paymentMethod === 'cod'} onChange={() => setPaymentMethod('cod')} className="accent-maroon-700" />
-                  <Truck size={24} className="text-maroon-700" />
-                  <div><p className="font-semibold">Cash on Delivery</p><p className="text-sm text-gray-500">Pay when you receive</p></div>
-                </label>
+              <h2 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                <Smartphone size={20} className="text-maroon-700" /> UPI Payment
+              </h2>
+
+              <div className="bg-maroon-50 border border-maroon-200 rounded-xl p-6 text-center">
+                <p className="text-sm text-gray-600 mb-3">Pay using any UPI app</p>
+
+                {/* UPI ID Display */}
+                <div className="bg-white rounded-lg p-4 mb-4 border border-gray-200">
+                  <p className="text-xs text-gray-500 mb-1">UPI ID</p>
+                  <div className="flex items-center justify-center gap-2">
+                    <p className="text-lg font-bold text-maroon-700 select-all">{MERCHANT_UPI.upiId}</p>
+                    <button
+                      onClick={copyUPIId}
+                      className="p-1.5 hover:bg-gray-100 rounded transition"
+                      title="Copy UPI ID"
+                    >
+                      {copied ? <CheckCircle size={18} className="text-green-600" /> : <Copy size={18} className="text-gray-500" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* QR Code */}
+                <div className="mb-4">
+                  <button
+                    onClick={generateQR}
+                    disabled={qrLoading}
+                    className="bg-maroon-700 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-maroon-800 transition inline-flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <QrCode size={18} />
+                    {qrLoading ? 'Generating...' : 'Show QR Code'}
+                  </button>
+                </div>
+
+                {qrCodeUrl && (
+                  <div className="inline-block bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+                    <img src={qrCodeUrl} alt="UPI QR Code" className="w-48 h-48 mx-auto" />
+                    <p className="text-xs text-gray-500 mt-2">Scan with any UPI app</p>
+                  </div>
+                )}
+
+                <p className="text-xs text-gray-400 mt-3">
+                  After payment, you'll be redirected to confirm your order via WhatsApp
+                </p>
               </div>
+
+              {/* Quick UPI App Buttons for Mobile */}
+              <div className="grid grid-cols-3 gap-3 mt-4">
+                {[
+                  { name: 'GPay', url: 'tez://upi/pay' },
+                  { name: 'PhonePe', url: 'phonepe://pay' },
+                  { name: 'Paytm', url: 'paytmmp://pay' },
+                ].map((app) => (
+                  <button
+                    key={app.name}
+                    onClick={() => {
+                      const txnRef = generateSecureId('TXN');
+                      const upiString = `upi://pay?pa=${encodeURIComponent(MERCHANT_UPI.upiId)}&pn=${encodeURIComponent(MERCHANT_UPI.merchantName)}&am=${grandTotal.toFixed(2)}&tr=${encodeURIComponent(txnRef)}&cu=INR`;
+                      window.location.href = upiString;
+                    }}
+                    className="border border-gray-200 rounded-lg py-3 text-sm font-medium hover:bg-gray-50 transition"
+                  >
+                    {app.name}
+                  </button>
+                ))}
+              </div>
+
               <div className="flex gap-3 mt-6">
                 <button onClick={() => setStep(1)} className="px-6 py-2.5 border border-gray-300 rounded-lg font-medium text-gray-700">Back</button>
-                <button onClick={() => setStep(3)} className="flex-1 bg-maroon-700 text-white py-3 rounded-lg font-semibold hover:bg-maroon-800">Review Order</button>
+                <button
+                  onClick={() => setStep(3)}
+                  className="flex-1 bg-maroon-700 text-white py-3 rounded-lg font-semibold hover:bg-maroon-800 transition"
+                >
+                  I've Made the Payment
+                </button>
               </div>
             </div>
           )}
@@ -343,12 +435,17 @@ export default function Checkout() {
                 <h2 className="font-semibold text-lg mb-3">Delivery Address</h2>
                 <p className="text-gray-700">{sanitizeHtml(selectedAddress.name)}</p>
                 <p className="text-gray-600">{sanitizeHtml(selectedAddress.address)}</p>
-                <p className="text-gray-600">{sanitizeHtml(selectedAddress.city)}, {sanitizeHtml(selectedAddress.state)} - {selectedAddress.pincode}</p>
-                <p className="text-gray-500">{selectedAddress.phone}</p>
+                <p className="text-gray-600">{sanitizeHtml(selectedAddress.city)} - {selectedAddress.pincode}</p>
               </div>
               <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                <h2 className="font-semibold text-lg mb-3">Payment Method</h2>
-                <p className="text-gray-700">{paymentMethod === 'razorpay' ? 'Pay Online (UPI/Cards/Net Banking)' : 'Cash on Delivery'}</p>
+                <h2 className="font-semibold text-lg mb-3">Payment</h2>
+                <div className="flex items-center gap-3 text-gray-700">
+                  <Smartphone size={20} className="text-maroon-700" />
+                  <div>
+                    <p className="font-medium">UPI — {MERCHANT_UPI.upiId}</p>
+                    <p className="text-sm text-gray-500">Amount: ₹{grandTotal}</p>
+                  </div>
+                </div>
               </div>
               <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                 <h2 className="font-semibold text-lg mb-4">Order Items</h2>
@@ -356,7 +453,10 @@ export default function Checkout() {
                   {items.map((item) => (
                     <div key={item.product.id} className="flex gap-4">
                       <img src={item.product.images?.[0]} alt={item.product.name} className="w-16 h-16 object-cover rounded" />
-                      <div className="flex-1"><p className="font-medium">{sanitizeHtml(item.product.name)}</p><p className="text-sm text-gray-500">{item.product.weight} x {item.qty}</p></div>
+                      <div className="flex-1">
+                        <p className="font-medium">{sanitizeHtml(item.product.name)}</p>
+                        <p className="text-sm text-gray-500">{item.product.weight} × {item.qty}</p>
+                      </div>
                       <p className="font-semibold">₹{item.product.offerPrice * item.qty}</p>
                     </div>
                   ))}
@@ -364,14 +464,19 @@ export default function Checkout() {
               </div>
               <div className="flex gap-3">
                 <button onClick={() => setStep(2)} className="px-6 py-2.5 border border-gray-300 rounded-lg font-medium text-gray-700">Back</button>
-                <button onClick={handlePayment} disabled={loading} className="flex-1 bg-maroon-700 text-white py-3 rounded-lg font-semibold hover:bg-maroon-800 disabled:opacity-50 flex items-center justify-center gap-2">
-                  {loading ? <Loader2 className="animate-spin" size={20} /> : `Pay ₹${grandTotal}`}
+                <button
+                  onClick={handleUPIPay}
+                  disabled={loading}
+                  className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  <MessageCircle size={20} /> {loading ? 'Processing...' : 'Confirm & WhatsApp'}
                 </button>
               </div>
             </div>
           )}
         </div>
 
+        {/* Order Summary Sidebar */}
         <div className="lg:sticky lg:top-24 h-fit">
           <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
             <h2 className="font-semibold text-lg mb-4">Order Summary</h2>
@@ -380,7 +485,13 @@ export default function Checkout() {
               <div className="flex gap-2 mb-4">
                 <div className="relative flex-1">
                   <Tag className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                  <input value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} placeholder="Coupon code" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyCoupon(); } }} className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-maroon-500 outline-none text-sm" />
+                  <input
+                    value={couponCode}
+                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                    placeholder="Coupon code"
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyCoupon(); } }}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-maroon-500 outline-none text-sm"
+                  />
                 </div>
                 <button onClick={applyCoupon} disabled={couponLoading || !couponCode} className="px-4 py-2 bg-maroon-700 text-white rounded-lg text-sm font-medium hover:bg-maroon-800 disabled:opacity-50">
                   {couponLoading ? '...' : 'Apply'}
@@ -401,12 +512,26 @@ export default function Checkout() {
               <div className="flex justify-between"><span className="text-gray-600">Subtotal ({items.reduce((s, i) => s + i.qty, 0)} items)</span><span>₹{subtotal}</span></div>
               <div className="flex justify-between text-green-600"><span>Product Discount</span><span>-₹{discountAmt}</span></div>
               {appliedCoupon && <div className="flex justify-between text-green-600"><span>Coupon ({appliedCoupon.code})</span><span>-₹{couponDiscount}</span></div>}
-              <div className="flex justify-between"><span className="text-gray-600">Delivery</span><span>{deliveryCharge === 0 ? <span className="text-green-600">FREE</span> : `₹${deliveryCharge}`}</span></div>
+              <div className="flex justify-between"><span className="text-gray-600">Delivery</span><span>{deliveryCharge === 0 ? <span className="text-green-600 font-medium">FREE</span> : `₹${deliveryCharge}`}</span></div>
               <div className="border-t pt-2 mt-2 flex justify-between font-bold text-lg"><span>Total</span><span>₹{grandTotal}</span></div>
             </div>
+
             {subtotal < DELIVERY_FREE_THRESHOLD && (
-              <div className="bg-gold-100 rounded-lg p-3 mt-4 text-sm">Add ₹{DELIVERY_FREE_THRESHOLD - subtotal} more for <span className="font-semibold text-maroon-700">FREE delivery</span></div>
+              <div className="bg-gold-100 rounded-lg p-3 mt-4 text-sm">
+                Add ₹{DELIVERY_FREE_THRESHOLD - subtotal} more for <span className="font-semibold text-maroon-700">FREE delivery</span>
+              </div>
             )}
+
+            {/* Payment Info Box */}
+            <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
+              <div className="flex items-center gap-2 text-sm font-medium text-blue-800 mb-2">
+                <Smartphone size={16} />
+                UPI Payment Only
+              </div>
+              <p className="text-xs text-blue-700">
+                Pay to <strong>{MERCHANT_UPI.upiId}</strong> via any UPI app. After payment, confirm on WhatsApp for order processing.
+              </p>
+            </div>
           </div>
         </div>
       </div>

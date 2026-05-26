@@ -1,6 +1,7 @@
 /**
- * UPI QR Code Payment Utilities
+ * UPI Payment Utilities
  * Generates UPI payment strings and QR codes for seamless payments
+ * UPI ID: pickurstay@ybl
  */
 
 import QRCode from 'qrcode';
@@ -32,7 +33,7 @@ export async function generatePaymentQR(params: UPIPaymentParams): Promise<strin
       width: 256,
       margin: 2,
       color: {
-        dark: '#6B1A1A',  // Maroon brand color
+        dark: '#6B1A1A', // Maroon brand color
         light: '#FFFFFF',
       },
       errorCorrectionLevel: 'M',
@@ -55,6 +56,14 @@ export function isValidUPIId(upiId: string): boolean {
  * Default merchant UPI configuration
  */
 export const MERCHANT_UPI = {
-  upiId: import.meta.env.VITE_UPI_ID || 'rootsofaraku@ybl',
+  upiId: import.meta.env.VITE_UPI_ID || 'pickurstay@ybl',
   merchantName: 'Roots of Araku',
 };
+
+/**
+ * Open UPI app via deep link
+ */
+export function openUPIApp(params: UPIPaymentParams): void {
+  const upiString = generateUPIString(params);
+  window.location.href = upiString;
+}
