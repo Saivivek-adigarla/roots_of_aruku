@@ -84,7 +84,7 @@ export default function OrderSuccess() {
           <CheckCircle size={48} className="text-green-600" />
         </div>
         <h1 className="text-3xl font-bold text-gray-800 mb-2">Order Placed Successfully!</h1>
-        <p className="text-gray-600">Complete your payment via UPI and confirm on WhatsApp</p>
+        <p className="text-gray-600">Complete your UPI payment and confirm on WhatsApp</p>
       </div>
 
       {/* UPI Payment Section */}

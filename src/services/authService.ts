@@ -1,106 +1,156 @@
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
-  sendPasswordResetEmail,
-  User as FirebaseUser,
-} from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase/config';
+import { supabase } from '../lib/supabase';
 import { User } from '../types';
 import { upsertUserProfile, fetchUserProfile } from './database';
 
 export const authService = {
-  registerWithEmail: async (email: string, password: string, displayName: string): Promise<User> => {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+  // Email + Password Login
+  loginWithEmail: async (email: string, password: string): Promise<User> => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email: email.toLowerCase().trim(), password });
+    if (error) throw error;
+
+    const profile = await fetchUserProfile(data.user.id);
+    const isAdminEmail = email === import.meta.env.VITE_ADMIN_EMAIL;
+
     const user: User = {
-      uid: userCredential.user.uid,
-      name: displayName,
-      email: userCredential.user.email || email,
-      phone: '',
-      isAdmin: false,
+      uid: data.user.id,
+      name: profile?.name || data.user.user_metadata?.name || data.user.email?.split('@')[0] || 'User',
+      email: data.user.email || email,
+      phone: profile?.phone || data.user.user_metadata?.phone || '',
+      isAdmin: profile?.role === 'admin' || isAdminEmail,
     };
-    // Save to Firestore (existing)
-    await setDoc(doc(db, 'users', userCredential.user.uid), user);
-    // Also create in Supabase
-    try {
-      await upsertUserProfile(userCredential.user.uid, email, displayName, '', 'customer');
-    } catch { /* non-blocking */ }
+
     return user;
   },
 
-  loginWithEmail: async (email: string, password: string): Promise<User> => {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    const isAdminEmail = email === import.meta.env.VITE_ADMIN_EMAIL;
+  // Email + Password Signup
+  registerWithEmail: async (email: string, password: string, displayName: string, phone?: string): Promise<User> => {
+    const { data, error } = await supabase.auth.signUp({
+      email: email.toLowerCase().trim(),
+      password,
+      options: {
+        data: { name: displayName, phone: phone || '' },
+      },
+    });
+    if (error) throw error;
 
-    // Try Supabase first for profile data
-    try {
-      const profile = await fetchUserProfile(userCredential.user.uid);
-      if (profile) {
-        const role = profile.role === 'admin' || isAdminEmail ? 'admin' : profile.role;
-        return {
-          uid: userCredential.user.uid,
-          name: profile.name || userCredential.user.displayName || 'User',
-          email: userCredential.user.email || email,
-          phone: profile.phone || '',
-          isAdmin: role === 'admin',
-        };
-      }
-    } catch { /* fallback to Firestore */ }
+    await upsertUserProfile(data.user.id, email, displayName, phone || '', 'customer');
 
-    // Fallback to Firestore
-    const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
-    if (userDoc.exists()) return userDoc.data() as User;
     return {
-      uid: userCredential.user.uid,
-      name: userCredential.user.displayName || 'User',
-      email: userCredential.user.email || email,
-      phone: '',
-      isAdmin: isAdminEmail,
+      uid: data.user.id,
+      name: displayName,
+      email: data.user.email || email,
+      phone: phone || '',
+      isAdmin: false,
     };
   },
 
-  resetPassword: async (email: string): Promise<void> => {
-    await sendPasswordResetEmail(auth, email);
+  // Phone OTP Login
+  loginWithPhone: async (phone: string): Promise<void> => {
+    const { error } = await supabase.auth.signInWithOtp({
+      phone: `+91${phone.replace(/\D/g, '').slice(-10)}`,
+    });
+    if (error) throw error;
   },
 
-  logout: async (): Promise<void> => {
-    await signOut(auth);
-  },
+  // Verify Phone OTP
+  verifyPhoneOtp: async (phone: string, otp: string): Promise<User> => {
+    const { data, error } = await supabase.auth.verifyOtp({
+      phone: `+91${phone.replace(/\D/g, '').slice(-10)}`,
+      token: otp,
+      type: 'sms',
+    });
+    if (error) throw error;
 
-  getCurrentUser: async (firebaseUser: FirebaseUser): Promise<User | null> => {
-    // Try Supabase first
-    try {
-      const profile = await fetchUserProfile(firebaseUser.uid);
-      if (profile) {
-        return {
-          uid: firebaseUser.uid,
-          name: profile.name || firebaseUser.displayName || 'User',
-          email: firebaseUser.email || '',
-          phone: profile.phone || '',
-          isAdmin: profile.role === 'admin' || firebaseUser.email === import.meta.env.VITE_ADMIN_EMAIL,
-        };
-      }
-    } catch { /* fallback */ }
+    const profile = await fetchUserProfile(data.user.id);
 
-    try {
-      const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-      return userDoc.exists() ? (userDoc.data() as User) : null;
-    } catch {
-      return null;
+    const user: User = {
+      uid: data.user.id,
+      name: profile?.name || data.user.user_metadata?.name || 'User',
+      email: profile?.email || data.user.email || '',
+      phone: phone.replace(/\D/g, '').slice(-10),
+      isAdmin: profile?.role === 'admin',
+    };
+
+    // Ensure profile exists
+    if (!profile) {
+      await upsertUserProfile(data.user.id, user.email, user.name, user.phone, 'customer');
     }
+
+    return user;
   },
 
+  // Google Sign-In
+  loginWithGoogle: async (): Promise<void> => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/`,
+      },
+    });
+    if (error) throw error;
+  },
+
+  // Logout
+  logout: async (): Promise<void> => {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+  },
+
+  // Get current authenticated user
+  getCurrentUser: async (): Promise<User | null> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return null;
+
+    const firebaseUser = session.user;
+    const profile = await fetchUserProfile(firebaseUser.id);
+    const isAdminEmail = firebaseUser.email === import.meta.env.VITE_ADMIN_EMAIL;
+
+    return {
+      uid: firebaseUser.id,
+      name: profile?.name || firebaseUser.user_metadata?.name || firebaseUser.email?.split('@')[0] || 'User',
+      email: firebaseUser.email || '',
+      phone: profile?.phone || firebaseUser.user_metadata?.phone || firebaseUser.phone || '',
+      isAdmin: profile?.role === 'admin' || isAdminEmail,
+    };
+  },
+
+  // Update profile
   updateProfile: async (userId: string, updates: Partial<User>): Promise<void> => {
-    await setDoc(doc(db, 'users', userId), updates, { merge: true });
-    // Also update in Supabase
-    try {
-      const supabaseUpdates: { name?: string; phone?: string } = {};
-      if (updates.name) supabaseUpdates.name = updates.name;
-      if (updates.phone) supabaseUpdates.phone = updates.phone;
-      if (Object.keys(supabaseUpdates).length > 0) {
-        await upsertUserProfile(userId, updates.email || '', supabaseUpdates.name || '', supabaseUpdates.phone || '', updates.isAdmin ? 'admin' : 'customer');
-      }
-    } catch { /* non-blocking */ }
+    const dbUpdates: { name?: string; phone?: string; email?: string; role?: string } = {};
+    if (updates.name) dbUpdates.name = updates.name;
+    if (updates.phone) dbUpdates.phone = updates.phone;
+    if (updates.email) dbUpdates.email = updates.email;
+    if (updates.isAdmin !== undefined) dbUpdates.role = updates.isAdmin ? 'admin' : 'customer';
+
+    await upsertUserProfile(userId, updates.email || '', dbUpdates.name || '', dbUpdates.phone || '', dbUpdates.role || 'customer');
+  },
+
+  // Password reset
+  resetPassword: async (email: string): Promise<void> => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.toLowerCase().trim(), {
+      redirectTo: `${window.location.origin}/forgot-password`,
+    });
+    if (error) throw error;
+  },
+
+  // Listen to auth state changes
+  onAuthStateChange: (callback: (user: User | null) => void) => {
+    supabase.auth.onAuthStateChange((_event, session) => {
+      (async () => {
+        if (session?.user) {
+          const profile = await fetchUserProfile(session.user.id);
+          const isAdminEmail = session.user.email === import.meta.env.VITE_ADMIN_EMAIL;
+          callback({
+            uid: session.user.id,
+            name: profile?.name || session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
+            email: session.user.email || '',
+            phone: profile?.phone || session.user.user_metadata?.phone || session.user.phone || '',
+            isAdmin: profile?.role === 'admin' || isAdminEmail,
+          });
+        } else {
+          callback(null);
+        }
+      })();
+    });
   },
 };

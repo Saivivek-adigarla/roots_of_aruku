@@ -2,16 +2,18 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { User } from '../types';
 import { secureStorage } from '../utils/security';
+import { authService } from '../services/authService';
 
 interface AuthStore {
   user: User | null;
   isAuthenticated: boolean;
+  initialized: boolean;
 
-  // Auth actions
   setUser: (user: User | null) => void;
   isAdmin: () => boolean;
-  logout: () => void;
+  logout: () => Promise<void>;
   clearSession: () => void;
+  initialize: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthStore>()(
@@ -19,17 +21,12 @@ export const useAuthStore = create<AuthStore>()(
     (set, get) => ({
       user: null,
       isAuthenticated: false,
+      initialized: false,
 
       setUser: (user) => {
-        set({
-          user,
-          isAuthenticated: !!user,
-        });
-        if (user) {
-          secureStorage.set('session_timestamp', Date.now());
-        } else {
-          secureStorage.remove('session_timestamp');
-        }
+        set({ user, isAuthenticated: !!user });
+        if (user) secureStorage.set('session_timestamp', Date.now());
+        else secureStorage.remove('session_timestamp');
       },
 
       isAdmin: () => {
@@ -38,25 +35,29 @@ export const useAuthStore = create<AuthStore>()(
         return user?.isAdmin === true || user?.email === adminEmail;
       },
 
-      logout: () => {
-        set({
-          user: null,
-          isAuthenticated: false,
-        });
+      logout: async () => {
+        try { await authService.logout(); } catch { /* already signed out */ }
+        set({ user: null, isAuthenticated: false });
         secureStorage.remove('session_timestamp');
       },
 
       clearSession: () => {
-        set({
-          user: null,
-          isAuthenticated: false,
-        });
+        set({ user: null, isAuthenticated: false });
         secureStorage.clear();
+      },
+
+      initialize: async () => {
+        try {
+          const user = await authService.getCurrentUser();
+          set({ user, isAuthenticated: !!user, initialized: true });
+        } catch {
+          set({ user: null, isAuthenticated: false, initialized: true });
+        }
       },
     }),
     {
       name: 'roa-auth',
-      version: 1,
+      version: 2,
     }
   )
 );

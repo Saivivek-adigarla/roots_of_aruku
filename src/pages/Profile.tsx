@@ -2,8 +2,6 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User as UserIcon, Mail, Phone, Package, MapPin, Heart, LogOut, CreditCard as Edit2, Save } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { signOut } from 'firebase/auth';
-import { auth } from '../firebase/config';
 import toast from 'react-hot-toast';
 import { isValidName, sanitizeHtml } from '../utils/security';
 import { updateUserProfile } from '../services/database';
@@ -19,7 +17,7 @@ export default function Profile() {
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
+      await useAuthStore.getState().logout();
       setUser(null);
       toast.success('Logged out successfully');
       navigate('/');

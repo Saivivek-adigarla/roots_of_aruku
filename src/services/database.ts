@@ -195,6 +195,7 @@ export async function upsertUserProfile(userId: string, email: string, name: str
   const { data, error } = await supabase.from('users').upsert({
     id: userId,
     name,
+    email,
     phone,
     role,
   }, { onConflict: 'id' }).select().maybeSingle();

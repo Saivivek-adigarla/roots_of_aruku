@@ -57,7 +57,7 @@ export function isValidUPIId(upiId: string): boolean {
  */
 export const MERCHANT_UPI = {
   upiId: import.meta.env.VITE_UPI_ID || 'pickurstay@ybl',
-  merchantName: 'Roots of Araku',
+  merchantName: 'PickUrStay Hotels',
 };
 
 /**

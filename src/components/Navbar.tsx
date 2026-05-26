@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingCart, User as UserIcon, Leaf, Search, Menu, X, Heart, Package, LogOut, Settings } from 'lucide-react';
+import { ShoppingCart, User as UserIcon, Building2, Search, Menu, X, Heart, Package, LogOut, Settings } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { useWishlistStore } from '../store/wishlistStore';
@@ -26,8 +26,8 @@ export default function Navbar() {
     }
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     setUserMenuOpen(false);
     navigate('/');
   };
@@ -41,8 +41,8 @@ export default function Navbar() {
               {menuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
             <Link to="/" className="flex items-center gap-2 font-bold text-white text-lg">
-              <Leaf size={24} className="text-gold-400" />
-              <span className="hidden sm:inline">Roots of Araku</span>
+              <Building2 size={24} className="text-gold-400" />
+              <span className="hidden sm:inline">PickUrStay</span>
             </Link>
           </div>
 
