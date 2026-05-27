@@ -43,7 +43,7 @@ function getAIResponse(message: string): { content: string; showActions: boolean
 export default function ChatWidget() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { id: 0, role: 'assistant', content: "Namaskaram! 🙏 I'm your PickUrStay assistant. I understand Telugu & English. Ask me about products, orders, payments, or anything! How can I help?" }
+    { id: 0, role: 'assistant', content: "Namaskaram! I'm your Roots of Araku assistant. I understand Telugu & English. Ask me about products, orders, payments, or anything! How can I help?" }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -105,7 +105,7 @@ export default function ChatWidget() {
   };
 
   const handleWhatsAppSupport = () => {
-    openWhatsApp('Hi, I need help with my query on PickUrStay. Can you assist me?');
+    openWhatsApp('Hi, I need help with my query on Roots of Araku. Can you assist me?');
   };
 
   if (!open) {
@@ -126,7 +126,7 @@ export default function ChatWidget() {
         <div className="flex items-center gap-2">
           <Bot size={20} />
           <div>
-            <span className="font-semibold text-sm">PickUrStay AI</span>
+            <span className="font-semibold text-sm">Roots of Araku AI</span>
             <p className="text-xs text-warm-200">Telugu & English support</p>
           </div>
         </div>

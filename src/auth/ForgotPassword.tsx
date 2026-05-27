@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, ArrowLeft, Loader2, CheckCircle } from 'lucide-react';
+import { Mail, ArrowLeft, Loader2, CheckCircle, Mountain } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { authService } from '../services/authService';
 
@@ -8,6 +8,9 @@ export default function ForgotPassword() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,41 +21,55 @@ export default function ForgotPassword() {
       setSent(true);
       toast.success('Reset link sent!');
     } catch {
-      toast.error('Failed to send reset link. Please check your email.');
+      toast.error('Failed to send reset link.');
     } finally { setLoading(false); }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center py-12 px-4 bg-gradient-to-br from-maroon-800 via-maroon-700 to-maroon-900">
-      <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
-          <div className="bg-maroon-700 text-white px-8 py-6 text-center">
-            <h1 className="text-2xl font-bold">Forgot Password</h1>
-            <p className="text-warm-200 mt-1 text-sm">Reset your password via email</p>
+    <div className="min-h-screen flex relative overflow-hidden bg-maroon-900">
+      <div className="absolute inset-0">
+        <img src="https://images.pexels.com/photos/312418/pexels-photo-312418.jpeg?w=1400" alt="Coffee beans" className="w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-br from-maroon-900/80 via-maroon-800/70 to-black/60" />
+      </div>
+
+      <div className={`flex-1 flex items-center justify-center relative z-10 p-4 transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-gold-400/20 backdrop-blur-md border border-gold-400/30 rounded-2xl mx-auto mb-4 flex items-center justify-center">
+              <Mountain size={32} className="text-gold-400" />
+            </div>
+            <h1 className="text-3xl font-bold text-white mb-1">Roots of <span className="text-gold-400">Araku</span></h1>
           </div>
-          <div className="p-8">
-            {sent ? (
-              <div className="text-center py-6">
-                <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                <h2 className="text-xl font-semibold text-gray-800 mb-2">Check Your Email</h2>
-                <p className="text-gray-600 mb-6">We sent a reset link to {email}</p>
-                <Link to="/login" className="text-maroon-700 font-semibold hover:underline inline-flex items-center gap-1"><ArrowLeft size={18} /> Back to Login</Link>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <p className="text-gray-600 text-sm mb-4">Enter the email associated with your account to receive a reset link.</p>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email address" className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-transparent outline-none transition" />
+
+          <div className="bg-white/10 backdrop-blur-xl rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
+            <div className="px-6 pt-6 pb-4">
+              <h2 className="text-xl font-bold text-white mb-1">Forgot Password</h2>
+              <p className="text-white/60 text-sm">Reset your password via email</p>
+            </div>
+            <div className="px-6 pb-6">
+              {sent ? (
+                <div className="text-center py-6">
+                  <CheckCircle className="w-14 h-14 text-green-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-white mb-2">Check Your Email</h3>
+                  <p className="text-white/60 text-sm mb-6">We sent a reset link to {email}</p>
+                  <Link to="/login" className="text-gold-400 font-semibold hover:text-gold-300 inline-flex items-center gap-1 transition"><ArrowLeft size={16} /> Back to Login</Link>
                 </div>
-                <button type="submit" disabled={loading} className="w-full bg-maroon-700 text-white py-3 rounded-xl font-semibold hover:bg-maroon-800 disabled:opacity-50 flex items-center justify-center gap-2">
-                  {loading ? <Loader2 className="animate-spin" size={20} /> : 'Send Reset Link'}
-                </button>
-                <div className="text-center">
-                  <Link to="/login" className="text-sm text-maroon-700 font-semibold hover:underline inline-flex items-center gap-1"><ArrowLeft size={16} /> Back to Login</Link>
-                </div>
-              </form>
-            )}
+              ) : (
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <p className="text-white/50 text-sm">Enter the email associated with your account to receive a reset link.</p>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" size={16} />
+                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email address" className="w-full pl-9 pr-4 py-3 bg-white/10 border border-white/15 rounded-xl text-white placeholder-white/40 focus:ring-2 focus:ring-gold-400/50 focus:border-gold-400/50 outline-none transition text-sm" />
+                  </div>
+                  <button type="submit" disabled={loading} className="w-full bg-gold-400 text-maroon-900 py-3 rounded-xl font-bold hover:bg-gold-500 disabled:opacity-50 flex items-center justify-center gap-2 transition-all shadow-lg shadow-gold-400/20">
+                    {loading ? <Loader2 className="animate-spin" size={18} /> : 'Send Reset Link'}
+                  </button>
+                  <div className="text-center">
+                    <Link to="/login" className="text-xs text-gold-400 hover:text-gold-300 inline-flex items-center gap-1 transition"><ArrowLeft size={14} /> Back to Login</Link>
+                  </div>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       </div>

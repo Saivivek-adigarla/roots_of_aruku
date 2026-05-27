@@ -16,7 +16,7 @@ export function buildOrderMessage(
   total: number,
   address?: { name: string; address: string; city: string; pincode: string; phone: string }
 ): string {
-  let message = `🌿 *New Order — PickUrStay Hotels*\n\n`;
+  let message = `🌿 *New Order — Roots of Araku*\n\n`;
   message += `📋 *Order ID:* #${orderId}\n\n`;
   message += `🛒 *Items:*\n`;
   items.forEach((item) => {
