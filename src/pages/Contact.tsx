@@ -41,7 +41,7 @@ export default function Contact() {
   };
 
   const handleWhatsApp = () => {
-    openWhatsApp('Hi, I have a query about Roots of Araku');
+    openWhatsApp('Hi, I have a query about Roots of Araku products');
   };
 
   return (

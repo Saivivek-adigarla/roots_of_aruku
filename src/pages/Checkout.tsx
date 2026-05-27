@@ -282,7 +282,7 @@ export default function Checkout() {
     <div className="max-w-7xl mx-auto px-4 py-8">
       <div className="flex items-center gap-2 mb-6">
         <Shield size={20} className="text-green-600" />
-        <span className="text-sm text-gray-600">Secure checkout by PickUrStay Hotels — UPI payment only</span>
+        <span className="text-sm text-gray-600">Secure checkout by Roots of Araku — UPI payment only</span>
       </div>
       <h1 className="text-2xl font-bold text-gray-800 mb-6">Checkout</h1>
 
