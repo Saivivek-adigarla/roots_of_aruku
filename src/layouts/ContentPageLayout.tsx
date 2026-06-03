@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import ChatWidget from '../components/ChatWidget';
+import BackButton from '../components/BackButton';
 import SEO from '../components/SEO';
 
 interface SEOProps {
@@ -46,6 +47,7 @@ export default function ContentPageLayout({
 
       {(heroImage || heroVideo) && (
         <div className={`relative overflow-hidden ${heightClass} bg-warm-50`}>
+          <BackButton className="absolute top-6 left-6 z-20 bg-white/80 backdrop-blur-md rounded-lg hover:bg-white" />
           {heroVideo && (
             <>
               <video

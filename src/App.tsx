@@ -6,6 +6,7 @@ import { useAuthStore } from './store/authStore';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ChatWidget from './components/ChatWidget';
+import BackButton from './components/BackButton';
 import ProtectedRoute from './components/ProtectedRoute';
 
 import Login from './auth/Login';
@@ -29,6 +30,13 @@ const About = lazy(() => import('./pages/About'));
 const Contact = lazy(() => import('./pages/Contact'));
 const OurStory = lazy(() => import('./pages/OurStory'));
 const FAQ = lazy(() => import('./pages/FAQ'));
+const Blog = lazy(() => import('./pages/Blog'));
+const BlogPost = lazy(() => import('./pages/BlogPost'));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+const TermsAndConditions = lazy(() => import('./pages/TermsAndConditions'));
+const ReturnsPolicy = lazy(() => import('./pages/ReturnsPolicy'));
+const ShippingPolicy = lazy(() => import('./pages/ShippingPolicy'));
+const Wholesale = lazy(() => import('./pages/Wholesale'));
 const AdminApp = lazy(() => import('./admin/AdminApp'));
 
 function ScrollToTop() {
@@ -49,9 +57,13 @@ function LoadingFallback() {
 }
 
 function MainLayout({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  const showBackButton = location.pathname !== '/';
+
   return (
     <>
       <Navbar />
+      {showBackButton && <BackButton className="fixed top-20 left-4 z-40 bg-white rounded-lg shadow-md hover:shadow-lg px-4 py-2" />}
       <main className="min-h-screen bg-warm-50">
         <Suspense fallback={<LoadingFallback />}>
           {children}
@@ -138,6 +150,33 @@ function App() {
           } />
           <Route path="/faq" element={
             <FAQ />
+          } />
+          <Route path="/blog" element={
+            <MainLayout>
+              <Blog />
+            </MainLayout>
+          } />
+          <Route path="/blog/:slug" element={
+            <MainLayout>
+              <BlogPost />
+            </MainLayout>
+          } />
+          <Route path="/privacy" element={
+            <PrivacyPolicy />
+          } />
+          <Route path="/terms" element={
+            <TermsAndConditions />
+          } />
+          <Route path="/returns" element={
+            <ReturnsPolicy />
+          } />
+          <Route path="/shipping" element={
+            <ShippingPolicy />
+          } />
+          <Route path="/wholesale" element={
+            <MainLayout>
+              <Wholesale />
+            </MainLayout>
           } />
 
           {/* Protected Routes - Auth required */}
