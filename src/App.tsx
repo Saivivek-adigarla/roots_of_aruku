@@ -27,6 +27,8 @@ const Addresses = lazy(() => import('./pages/Addresses'));
 const Search = lazy(() => import('./pages/Search'));
 const About = lazy(() => import('./pages/About'));
 const Contact = lazy(() => import('./pages/Contact'));
+const OurStory = lazy(() => import('./pages/OurStory'));
+const FAQ = lazy(() => import('./pages/FAQ'));
 const AdminApp = lazy(() => import('./admin/AdminApp'));
 
 function ScrollToTop() {
@@ -130,6 +132,12 @@ function App() {
             <MainLayout>
               <Cart />
             </MainLayout>
+          } />
+          <Route path="/story" element={
+            <OurStory />
+          } />
+          <Route path="/faq" element={
+            <FAQ />
           } />
 
           {/* Protected Routes - Auth required */}
