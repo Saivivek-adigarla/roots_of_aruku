@@ -11,6 +11,7 @@ import AdminProducts from './AdminProducts';
 import AdminOrders from './AdminOrders';
 import AdminCustomers from './AdminCustomers';
 import AdminAnalytics from './AdminAnalytics';
+import AdminPaymentAnalytics from './AdminPaymentAnalytics';
 import AdminCoupons from './AdminCoupons';
 import AdminInventory from './AdminInventory';
 import AdminSettings from './AdminSettings';
@@ -122,6 +123,7 @@ const navItems = [
   { path: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { path: '/admin/products', label: 'Products', icon: Package },
   { path: '/admin/orders', label: 'Orders', icon: ShoppingCart },
+  { path: '/admin/payments', label: 'Payments', icon: BarChart3 },
   { path: '/admin/customers', label: 'Customers', icon: Users },
   { path: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
   { path: '/admin/coupons', label: 'Coupons', icon: Tag },
@@ -186,6 +188,7 @@ export default function AdminApp() {
             <Route index element={<Dashboard />} />
             <Route path="products" element={<AdminProducts />} />
             <Route path="orders" element={<AdminOrders />} />
+            <Route path="payments" element={<AdminPaymentAnalytics />} />
             <Route path="customers" element={<AdminCustomers />} />
             <Route path="analytics" element={<AdminAnalytics />} />
             <Route path="coupons" element={<AdminCoupons />} />

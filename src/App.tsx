@@ -61,7 +61,7 @@ function MainLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
-function AuthRedirect({ children }: { children: React.ReactNode }) {
+function ProtectedPages({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
   const initialized = useAuthStore((s) => s.initialized);
 
@@ -72,10 +72,13 @@ function AuthRedirect({ children }: { children: React.ReactNode }) {
 
 function App() {
   const initialize = useAuthStore((s) => s.initialize);
+  const initialized = useAuthStore((s) => s.initialized);
 
   useEffect(() => {
     initialize();
   }, [initialize]);
+
+  if (!initialized) return <LoadingFallback />;
 
   return (
     <BrowserRouter>
@@ -83,33 +86,105 @@ function App() {
       <Toaster position="top-center" toastOptions={{ duration: 2500 }} />
       <Suspense fallback={<LoadingFallback />}>
         <Routes>
+          {/* Admin Routes */}
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin/*" element={<ProtectedRoute adminOnly><AdminApp /></ProtectedRoute>} />
+
+          {/* Auth Routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/*" element={
-            <AuthRedirect>
-              <MainLayout>
-                <Routes>
-                  <Route path="/" element={<Home />} />
-                  <Route path="/products" element={<Products />} />
-                  <Route path="/product/:id" element={<ProductDetail />} />
-                  <Route path="/cart" element={<Cart />} />
-                  <Route path="/checkout" element={<Checkout />} />
-                  <Route path="/order-success" element={<OrderSuccess />} />
-                  <Route path="/order/:id" element={<OrderTracking />} />
-                  <Route path="/search" element={<Search />} />
-                  <Route path="/about" element={<About />} />
-                  <Route path="/contact" element={<Contact />} />
-                  <Route path="/wishlist" element={<Wishlist />} />
-                  <Route path="/profile" element={<Profile />} />
-                  <Route path="/orders" element={<MyOrders />} />
-                  <Route path="/addresses" element={<Addresses />} />
-                </Routes>
-              </MainLayout>
-            </AuthRedirect>
+
+          {/* Public Routes - No auth required */}
+          <Route path="/" element={
+            <MainLayout>
+              <Home />
+            </MainLayout>
           } />
+          <Route path="/products" element={
+            <MainLayout>
+              <Products />
+            </MainLayout>
+          } />
+          <Route path="/product/:id" element={
+            <MainLayout>
+              <ProductDetail />
+            </MainLayout>
+          } />
+          <Route path="/search" element={
+            <MainLayout>
+              <Search />
+            </MainLayout>
+          } />
+          <Route path="/about" element={
+            <MainLayout>
+              <About />
+            </MainLayout>
+          } />
+          <Route path="/contact" element={
+            <MainLayout>
+              <Contact />
+            </MainLayout>
+          } />
+          <Route path="/cart" element={
+            <MainLayout>
+              <Cart />
+            </MainLayout>
+          } />
+
+          {/* Protected Routes - Auth required */}
+          <Route path="/checkout" element={
+            <ProtectedPages>
+              <MainLayout>
+                <Checkout />
+              </MainLayout>
+            </ProtectedPages>
+          } />
+          <Route path="/order-success" element={
+            <ProtectedPages>
+              <MainLayout>
+                <OrderSuccess />
+              </MainLayout>
+            </ProtectedPages>
+          } />
+          <Route path="/order/:id" element={
+            <ProtectedPages>
+              <MainLayout>
+                <OrderTracking />
+              </MainLayout>
+            </ProtectedPages>
+          } />
+          <Route path="/wishlist" element={
+            <ProtectedPages>
+              <MainLayout>
+                <Wishlist />
+              </MainLayout>
+            </ProtectedPages>
+          } />
+          <Route path="/profile" element={
+            <ProtectedPages>
+              <MainLayout>
+                <Profile />
+              </MainLayout>
+            </ProtectedPages>
+          } />
+          <Route path="/orders" element={
+            <ProtectedPages>
+              <MainLayout>
+                <MyOrders />
+              </MainLayout>
+            </ProtectedPages>
+          } />
+          <Route path="/addresses" element={
+            <ProtectedPages>
+              <MainLayout>
+                <Addresses />
+              </MainLayout>
+            </ProtectedPages>
+          } />
+
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
     </BrowserRouter>
