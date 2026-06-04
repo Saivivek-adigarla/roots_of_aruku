@@ -27,7 +27,7 @@ if (import.meta.env.DEV && !localStorage.getItem('emulator-configured')) {
     connectFirestoreEmulator(db, 'localhost', 8080);
     connectStorageEmulator(storage, 'localhost', 9199);
     localStorage.setItem('emulator-configured', 'true');
-  } catch (error) {
+  } catch {
     // Emulator already connected
   }
 }

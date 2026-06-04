@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Star, Heart, ShoppingCart, Leaf, Award, Truck } from 'lucide-react';
+import { ArrowRight, Star, ShoppingCart, Leaf, Award, Truck } from 'lucide-react';
 import { motion } from 'framer-motion';
-import SEO from '../components/SEO';
 import ProductCard from '../components/ProductCard';
 import { SEED_PRODUCTS } from '../data/products';
 import { fetchProducts } from '../services/database';
@@ -207,7 +206,7 @@ export default function Home() {
               </Link>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {featured.slice(0, 4).map((product, i) => (
+              {featured.slice(0, 4).map((product) => (
                 <motion.div key={product.id} variants={itemVariants}>
                   <ProductCard product={product} />
                 </motion.div>

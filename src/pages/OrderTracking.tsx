@@ -32,7 +32,7 @@ export default function OrderTracking() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const addItem = useCartStore((s) => s.addItem);
-  const [order, setOrder] = useState<any>(null);
+  const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [reordering, setReordering] = useState(false);
 
@@ -59,8 +59,8 @@ export default function OrderTracking() {
         if (lastOrder && (lastOrder.orderId === id || lastOrder.orderId === `ROA-${id}`)) {
           setOrder(lastOrder);
         }
-      } catch (err) {
-        console.error('Failed to fetch order:', err);
+      } catch {
+        console.error('Failed to fetch order');
         toast.error('Failed to load order');
       } finally {
         setLoading(false);
@@ -98,7 +98,7 @@ export default function OrderTracking() {
       } else {
         toast.error('Some items are unavailable');
       }
-    } catch (err) {
+    } catch {
       toast.error('Failed to add items to cart');
     } finally {
       setReordering(false);
@@ -193,7 +193,7 @@ export default function OrderTracking() {
                 <Package size={18} className="text-maroon-700" /> Order Items
               </h4>
               <div className="space-y-3 max-h-64 overflow-y-auto">
-                {items.map((item: any, idx: number) => (
+                {items.map((item: Order['order_items'][number], idx: number) => (
                   <div key={idx} className="flex items-center gap-3 bg-gray-50 rounded-lg p-3">
                     <div className="w-14 h-14 bg-gray-200 rounded flex-shrink-0">
                       {item.product?.images?.[0] && (

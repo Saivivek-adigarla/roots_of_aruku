@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { TrendingUp, DollarSign, ShoppingBag, Users, Package, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { TrendingUp, DollarSign, ShoppingBag, Package, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface StatCard {
@@ -14,7 +14,6 @@ interface StatCard {
 export default function AdminAnalytics() {
   const [stats, setStats] = useState<StatCard[]>([]);
   const [recentOrders, setRecentOrders] = useState<{ id: string; order_number: string; total: number; status: string; date: string }[]>([]);
-  const [topProducts, setTopProducts] = useState<{ name: string; sold: number; revenue: number }[]>([]);
   const [categoryBreakdown, setCategoryBreakdown] = useState<{ category: string; count: number; revenue: number }[]>([]);
   const [inventoryStats, setInventoryStats] = useState({ active: 0, outOfStock: 0, unreadAlerts: 0 });
   const [loading, setLoading] = useState(true);
@@ -53,15 +52,6 @@ export default function AdminAnalytics() {
           total: o.total_amount + o.delivery_charge,
           status: o.status,
           date: new Date(o.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
-        }))
-      );
-
-      // Top products by revenue (simulated from product data)
-      setTopProducts(
-        products.slice(0, 5).map((p) => ({
-          name: p.name,
-          sold: Math.floor(Math.random() * 50) + 10,
-          revenue: (p.offer_price * (Math.floor(Math.random() * 50) + 10)),
         }))
       );
 

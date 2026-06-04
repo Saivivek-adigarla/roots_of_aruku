@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Loader2, Mail, Lock, Phone, ArrowRight, AlertTriangle, Mountain, Eye, EyeOff } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
-import { isValidEmail, isValidPhone, checkRateLimit, secureStorage, generateCsrfToken, validateCsrfToken, sanitizeHtml } from '../utils/security';
+import { isValidEmail, isValidPhone, checkRateLimit, secureStorage, generateCsrfToken, validateCsrfToken } from '../utils/security';
 import { authService } from '../services/authService';
 
 type LoginMode = 'phone' | 'email' | 'google';

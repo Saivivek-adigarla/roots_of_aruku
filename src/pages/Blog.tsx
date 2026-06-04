@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Calendar, User, Search, ChevronRight } from 'lucide-react';
-import SEO from '../components/SEO';
 import ContentPageLayout from '../layouts/ContentPageLayout';
 
 const blogPosts = [

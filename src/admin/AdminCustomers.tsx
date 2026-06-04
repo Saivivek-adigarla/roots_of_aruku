@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Mail, Phone, Calendar, ShoppingBag } from 'lucide-react';
+import { Users, Phone, Calendar, ShoppingBag } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Loader2, Mail, Lock, User, Phone, ArrowRight, AlertTriangle, Check, Eye, EyeOff, Mountain } from 'lucide-react';
+import { Loader2, Mail, Lock, User, ArrowRight, AlertTriangle, Check, Eye, EyeOff, Mountain } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
 import { isValidEmail, isValidName, isValidPhone, validatePassword, sanitizeHtml, checkRateLimit, secureStorage, generateCsrfToken, validateCsrfToken } from '../utils/security';

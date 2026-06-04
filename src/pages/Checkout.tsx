@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { QrCode, MapPin, Check, Loader2, Shield, Tag, X, Smartphone, MessageCircle, Package, Copy, CheckCircle } from 'lucide-react';
+import { MapPin, Check, Shield, Tag, X, Smartphone, MessageCircle, Package, Copy, CheckCircle } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { getDeliveryCharge, DELIVERY_FREE_THRESHOLD } from '../utils/helpers';
@@ -21,7 +21,6 @@ import {
 import { supabase } from '../lib/supabase';
 import { createOrder, fetchAddresses, saveAddress as saveDbAddress } from '../services/database';
 import { generatePaymentQR, MERCHANT_UPI, openUPIApp } from '../utils/upiPayment';
-import { openWhatsApp, buildOrderMessage } from '../utils/whatsapp';
 
 export default function Checkout() {
   const { items, clearCart } = useCartStore();

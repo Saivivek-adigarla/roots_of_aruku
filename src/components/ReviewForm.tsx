@@ -3,7 +3,7 @@ import { Star, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
-import { sanitizeHtml, isValidName } from '../utils/security';
+import { sanitizeHtml } from '../utils/security';
 
 interface ReviewFormProps {
   productId: string;

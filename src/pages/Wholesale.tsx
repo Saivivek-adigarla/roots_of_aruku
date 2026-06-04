@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Briefcase, Truck, DollarSign, Users, Mail, Phone } from 'lucide-react';
-import SEO from '../components/SEO';
 import ContentPageLayout from '../layouts/ContentPageLayout';
 import toast from 'react-hot-toast';
 

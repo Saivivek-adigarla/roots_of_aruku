@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, X, Upload, Package, AlertTriangle } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Upload, Package } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { isValidName, sanitizeHtml, isValidPrice } from '../utils/security';

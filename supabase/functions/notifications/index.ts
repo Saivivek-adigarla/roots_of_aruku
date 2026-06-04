@@ -71,7 +71,7 @@ Deno.serve(async (req: Request) => {
     }
 
     let subject = "";
-    let html = "";
+    let html = ""; // html content for email (ready for integration with email service)
 
     switch (type) {
       case "order_confirmation":
@@ -82,7 +82,7 @@ Deno.serve(async (req: Request) => {
         subject = `Order Update - #${data.order_number || "N/A"}`;
         html = generateStatusUpdateHtml(name, data.order_number || "N/A", data.status || "updated");
         break;
-      case "welcome":
+      case "welcome": {
         subject = "Welcome to Roots of Araku!";
         html = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #fff8f0; padding: 20px;">
@@ -97,6 +97,7 @@ Deno.serve(async (req: Request) => {
           </div>
         `;
         break;
+      }
       default:
         return new Response(
           JSON.stringify({ error: "Unknown notification type" }),
@@ -105,7 +106,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // In production, integrate with email service (Resend, SendGrid, etc.)
-    console.log(`[NOTIFICATION] Type: ${type}, To: ${email}, Subject: ${subject}`);
+    console.log(`[NOTIFICATION] Type: ${type}, To: ${email}, Subject: ${subject}, HTML: ${html.length} chars`);
 
     return new Response(
       JSON.stringify({
@@ -118,7 +119,7 @@ Deno.serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
-  } catch (error) {
+  } catch {
     return new Response(
       JSON.stringify({ error: "Failed to process notification" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

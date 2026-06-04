@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Eye, ChevronRight, Calendar, MapPin, CreditCard, ShoppingBag, RotateCcw } from 'lucide-react';
+import { useEffect } from 'react';
+import { ChevronRight, Calendar, MapPin, CreditCard, ShoppingBag } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
 import { useCartStore } from '../store/cartStore';
@@ -87,7 +86,7 @@ export default function MyOrders() {
       } else {
         toast.error('Some items are unavailable');
       }
-    } catch (err) {
+    } catch {
       toast.error('Failed to add items to cart');
     } finally {
       setReorderingId(null);

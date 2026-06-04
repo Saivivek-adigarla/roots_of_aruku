@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Truck, MapPin, Clock, DollarSign } from 'lucide-react';
+import { Truck, Clock } from 'lucide-react';
 import ContentPageLayout from '../layouts/ContentPageLayout';
 
 export default function ShippingPolicy() {

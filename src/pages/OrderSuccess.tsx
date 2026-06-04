@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { CheckCircle, Package, MapPin, Calendar, Smartphone, MessageCircle, QrCode, Copy, ExternalLink, Loader2 } from 'lucide-react';
+import { CheckCircle, Package, MapPin, Calendar, Smartphone, MessageCircle, Copy, ExternalLink, Loader2 } from 'lucide-react';
 import { secureStorage } from '../utils/security';
 import toast from 'react-hot-toast';
 import type { Order } from '../types';

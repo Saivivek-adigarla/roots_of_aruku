@@ -1,10 +1,9 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Calendar, User, Clock, Share2, Heart, MessageCircle } from 'lucide-react';
-import SEO from '../components/SEO';
 import ContentPageLayout from '../layouts/ContentPageLayout';
 
-const blogPostsData: Record<string, any> = {
+const blogPostsData: Record<string, { title: string; author: string; date: string; readTime: string; content: string; image: string }> = {
   'benefits-of-organic-coffee': {
     title: '10 Health Benefits of Organic Coffee from Araku Valley',
     author: 'Dr. Priya Sharma',
