@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Star, ShoppingCart, Leaf, Award, Truck } from 'lucide-react';
 import { motion } from 'framer-motion';
 import ProductCard from '../components/ProductCard';
+import SEO from '../components/SEO';
 import { SEED_PRODUCTS } from '../data/products';
 import { fetchProducts } from '../services/database';
 import type { Product } from '../types';

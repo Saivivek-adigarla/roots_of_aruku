@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 // ============================================
@@ -180,43 +180,8 @@ export const paginatedQuery = async (supabase, table, page = 1, pageSize = 20) =
     },
   };
 };
-
-// 8. ERROR BOUNDARY COMPONENT
-export class ErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error, errorInfo) {
-    console.error('Error caught:', error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div style={{
-          padding: '20px',
-          backgroundColor: '#f5f5f5',
-          borderRadius: '8px',
-          margin: '20px',
-        }}>
-          <h2>Something went wrong</h2>
-          <p>Please try refreshing the page. If the problem persists, contact support.</p>
-          <button onClick={() => window.location.reload()}>
-            Refresh Page
-          </button>
-        </div>
-      );
-    }
-
-    return this.props.children;
-  }
-}
+// 8. ERROR BOUNDARY COMPONENT - Move to components folder for JSX support
+// Use ErrorBoundary from components/ErrorBoundary.tsx instead
 
 // 9. OPTIMIZED DATA FETCHING HOOK
 export const useFetchOptimized = (fetchFn, dependencies = []) => {
@@ -442,7 +407,6 @@ export default {
   createOptimizedSupabaseClient,
   batchQueries,
   paginatedQuery,
-  ErrorBoundary,
   useFetchOptimized,
   useOptimizedSelector,
   batchUpdate,

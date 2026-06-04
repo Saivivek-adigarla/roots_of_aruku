@@ -1,4 +1,4 @@
-import { retryWithBackoff, cache, rateLimiter, CircuitBreaker, paginatedQuery } from './enterpriseOptimization';
+import { retryWithBackoff, cache, rateLimiter, CircuitBreaker } from './enterpriseOptimization';
 import { supabase } from '../lib/supabase';
 
 // ============================================
