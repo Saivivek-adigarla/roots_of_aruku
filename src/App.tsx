@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import { useEffect, Suspense, lazy } from 'react';
+import { useEffect, Suspense, lazy, useState } from 'react';
 import { useAuthStore } from './store/authStore';
 
 import Navbar from './components/Navbar';
@@ -8,6 +8,7 @@ import Footer from './components/Footer';
 import ChatWidget from './components/ChatWidget';
 import BackButton from './components/BackButton';
 import ProtectedRoute from './components/ProtectedRoute';
+import SplashScreen from './components/SplashScreen';
 
 import Login from './auth/Login';
 import Signup from './auth/Signup';
@@ -87,12 +88,14 @@ function ProtectedPages({ children }: { children: React.ReactNode }) {
 function App() {
   const initialize = useAuthStore((s) => s.initialize);
   const initialized = useAuthStore((s) => s.initialized);
+  const [splashComplete, setSplashComplete] = useState(false);
 
   useEffect(() => {
     initialize();
   }, [initialize]);
 
   if (!initialized) return <LoadingFallback />;
+  if (!splashComplete) return <SplashScreen onComplete={() => setSplashComplete(true)} />;
 
   return (
     <BrowserRouter>
