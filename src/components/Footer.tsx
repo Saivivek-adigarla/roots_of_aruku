@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
-import { Phone, MapPin, Mountain } from 'lucide-react';
+import { Phone, MapPin } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 export default function Footer() {
   return (
@@ -8,7 +9,13 @@ export default function Footer() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-8 mb-8">
           {/* Brand */}
           <div>
-            <h3 className="text-white font-bold mb-2 flex items-center gap-2"><Mountain size={18} className="text-gold-400" /> Roots of Araku</h3>
+            <motion.div
+              className="mb-4"
+              whileHover={{ scale: 1.05 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 10 }}
+            >
+              <img src="/image.png" alt="Roots of Araku" className="h-20 w-auto" />
+            </motion.div>
             <p className="text-sm">Premium organic products from Araku Valley tribal farms. 100% authentic, chemical-free.</p>
           </div>
 
