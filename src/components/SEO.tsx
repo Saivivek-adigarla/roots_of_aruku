@@ -8,7 +8,7 @@ interface SEOProps {
   image?: string;
 }
 
-export function useSEO(props: SEOProps) {
+const useSEO = (props: SEOProps) => {
   useEffect(() => {
     document.title = props.title;
 
@@ -50,7 +50,7 @@ export function useSEO(props: SEOProps) {
       metaOG.setAttribute('content', props.image);
     }
   }, [props]);
-}
+};
 
 export default function SEO({ title, description, keywords }: SEOProps) {
   useSEO({ title, description, keywords });

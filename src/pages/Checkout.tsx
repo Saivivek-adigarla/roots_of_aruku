@@ -50,8 +50,9 @@ export default function Checkout() {
   const grandTotal = Math.max(0, subtotal - couponDiscount + deliveryCharge);
 
   useEffect(() => {
-    setCsrfToken(generateCsrfToken());
-    secureStorage.set('checkout_csrf', csrfToken);
+    const token = generateCsrfToken();
+    setCsrfToken(token);
+    secureStorage.set('checkout_csrf', token);
     loadAddresses();
   }, []);
 

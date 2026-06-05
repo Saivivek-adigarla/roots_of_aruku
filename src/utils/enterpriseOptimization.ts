@@ -184,10 +184,11 @@ export const paginatedQuery = async (supabase, table, page = 1, pageSize = 20) =
 // Use ErrorBoundary from components/ErrorBoundary.tsx instead
 
 // 9. OPTIMIZED DATA FETCHING HOOK
-export const useFetchOptimized = (fetchFn, dependencies = []) => {
+export const useFetchOptimized = (fetchFn: () => Promise<unknown>, deps?: unknown[]) => {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const dependencies = deps || [];
 
   useEffect(() => {
     let isMounted = true;
@@ -217,7 +218,7 @@ export const useFetchOptimized = (fetchFn, dependencies = []) => {
           cache.set(cacheKey, result);
         }
       } catch (err) {
-        if (isMounted) setError(err.message);
+        if (isMounted) setError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -229,7 +230,7 @@ export const useFetchOptimized = (fetchFn, dependencies = []) => {
       isMounted = false;
       controller.abort();
     };
-  }, dependencies);
+  }, [dependencies]);
 
   return { data, error, loading };
 };

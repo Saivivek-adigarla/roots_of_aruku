@@ -36,7 +36,7 @@ export default function MyOrders() {
       return;
     }
     loadOrders();
-  }, [user, navigate]);
+  }, [user?.uid, navigate]);
 
   const loadOrders = async () => {
     if (!user) return;

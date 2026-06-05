@@ -22,7 +22,7 @@ export default function Addresses() {
       return;
     }
     loadAddresses();
-  }, [user, navigate]);
+  }, [user?.uid, navigate]);
 
   const loadAddresses = async () => {
     if (!user) return;

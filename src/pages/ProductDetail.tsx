@@ -55,9 +55,7 @@ export default function ProductDetail() {
   };
 
   useEffect(() => {
-    if (id) {
-      fetchReviews();
-    }
+    fetchReviews();
   }, [id]);
 
   const fetchReviews = async () => {
