@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Loader2, Mail, Lock, Phone, ArrowRight, AlertTriangle, Mountain, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Mail, Lock, Phone, ArrowRight, AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
 import { isValidEmail, isValidPhone, checkRateLimit, secureStorage, generateCsrfToken, validateCsrfToken } from '../utils/security';
@@ -149,9 +149,7 @@ export default function Login() {
       {/* Left Panel - Branding (hidden on mobile) */}
       <div className={`hidden lg:flex flex-1 items-center justify-center relative z-10 transition-all duration-700 ${mounted ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-12'}`}>
         <div className="text-center px-12 max-w-lg">
-          <div className="w-24 h-24 bg-gold-400/20 backdrop-blur-md border border-gold-400/30 rounded-3xl mx-auto mb-8 flex items-center justify-center">
-            <Mountain size={48} className="text-gold-400" />
-          </div>
+          <img src="/image copy copy copy copy copy copy copy.png" alt="Roots of Araku" className="h-32 w-auto mx-auto mb-8" />
           <h1 className="text-5xl font-bold text-white mb-4 leading-tight">
             Roots of <span className="text-gold-400">Araku</span>
           </h1>
@@ -169,9 +167,7 @@ export default function Login() {
         <div className="w-full max-w-sm">
           {/* Mobile Logo */}
           <div className="lg:hidden text-center mb-8">
-            <div className="w-16 h-16 bg-gold-400/20 backdrop-blur-md border border-gold-400/30 rounded-2xl mx-auto mb-4 flex items-center justify-center">
-              <Mountain size={32} className="text-gold-400" />
-            </div>
+            <img src="/image copy copy copy copy copy copy copy.png" alt="Roots of Araku" className="h-20 w-auto mx-auto mb-4" />
             <h1 className="text-3xl font-bold text-white mb-1">
               Roots of <span className="text-gold-400">Araku</span>
             </h1>

@@ -9,13 +9,9 @@ export default function Footer() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-8 mb-8">
           {/* Brand */}
           <div>
-            <motion.div
-              className="mb-4"
-              whileHover={{ scale: 1.05 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 10 }}
-            >
-              <img src="/image.png" alt="Roots of Araku" className="h-20 w-auto" />
-            </motion.div>
+            <div className="mb-4">
+              <img src="/image copy copy copy copy copy copy copy.png" alt="Roots of Araku" className="h-20 w-auto" />
+            </div>
             <p className="text-sm">Premium organic products from Araku Valley tribal farms. 100% authentic, chemical-free.</p>
           </div>
 

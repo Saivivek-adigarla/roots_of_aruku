@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Package, ShoppingCart, Users, Settings, LogOut, Menu, X, Leaf, Tag, BarChart3, AlertTriangle } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Users, Settings, LogOut, Menu, X, Tag, BarChart3, AlertTriangle } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase/config';
@@ -169,7 +169,7 @@ export default function AdminApp() {
     <div className="min-h-screen bg-warm-50">
       <aside className={`fixed inset-y-0 left-0 w-64 bg-maroon-900 text-white transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 transition-transform z-40`}>
         <div className="p-4 border-b border-maroon-800 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 font-bold"><Leaf className="text-gold-400" size={24} /><span>Roots Admin</span></Link>
+          <Link to="/" className="flex items-center gap-2 font-bold"><img src="/image copy copy copy copy copy copy copy.png" alt="Roots of Araku" className="h-8 w-auto" /><span>Roots Admin</span></Link>
           <button onClick={() => setSidebarOpen(false)} className="lg:hidden"><X size={24} /></button>
         </div>
         <nav className="p-4 space-y-1">

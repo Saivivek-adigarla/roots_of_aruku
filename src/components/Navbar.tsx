@@ -42,12 +42,10 @@ export default function Navbar() {
               {menuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
             <Link to="/" className="flex items-center gap-2">
-              <motion.img
-                src="/image.png"
+              <img
+                src="/image copy copy copy copy copy copy copy.png"
                 alt="Roots of Araku"
                 className="h-14 w-auto"
-                whileHover={{ scale: 1.05 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 10 }}
               />
               <span className="hidden md:inline text-sm font-semibold text-gold-300">Roots of Araku</span>
             </Link>

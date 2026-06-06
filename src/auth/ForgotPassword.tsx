@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, ArrowLeft, Loader2, CheckCircle, Mountain } from 'lucide-react';
+import { Mail, ArrowLeft, Loader2, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { authService } from '../services/authService';
 
@@ -35,9 +35,7 @@ export default function ForgotPassword() {
       <div className={`flex-1 flex items-center justify-center relative z-10 p-4 transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-gold-400/20 backdrop-blur-md border border-gold-400/30 rounded-2xl mx-auto mb-4 flex items-center justify-center">
-              <Mountain size={32} className="text-gold-400" />
-            </div>
+            <img src="/image copy copy copy copy copy copy copy.png" alt="Roots of Araku" className="h-20 w-auto mx-auto mb-4" />
             <h1 className="text-3xl font-bold text-white mb-1">Roots of <span className="text-gold-400">Araku</span></h1>
           </div>
 
