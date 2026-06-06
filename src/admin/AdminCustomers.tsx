@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Users, Phone, Calendar, ShoppingBag } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { supabase } from '../lib/supabase';
+import { db } from '../firebase/config';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 
 interface Customer {
   id: string;
@@ -26,25 +27,21 @@ export default function AdminCustomers() {
   const fetchCustomers = async () => {
     setLoading(true);
     try {
-      const { data: users, error } = await supabase
-        .from('users')
-        .select('id, name, phone, role, created_at')
-        .eq('role', 'customer')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
+      const q = query(collection(db, 'users'), where('role', '==', 'customer'));
+      const snapshot = await getDocs(q);
+      const users = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
 
-      const { data: orders } = await supabase
-        .from('orders')
-        .select('user_id, total_amount, delivery_charge');
+      const ordersSnapshot = await getDocs(collection(db, 'orders'));
+      const orders = ordersSnapshot.docs.map(d => ({ ...d.data() })) as any[];
 
       const orderMap: Record<string, { count: number; total: number }> = {};
-      (orders || []).forEach((o) => {
+      orders.forEach((o) => {
         if (!orderMap[o.user_id]) orderMap[o.user_id] = { count: 0, total: 0 };
         orderMap[o.user_id].count++;
         orderMap[o.user_id].total += o.total_amount + o.delivery_charge;
       });
 
-      const customerList = (users || []).map((u) => ({
+      const customerList = users.map((u) => ({
         id: u.id,
         name: u.name || 'Unknown',
         phone: u.phone || '',

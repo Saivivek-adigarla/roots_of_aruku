@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Star, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { supabase } from '../lib/supabase';
+import { db } from '../firebase/config';
+import { collection, addDoc } from 'firebase/firestore';
 import { useAuthStore } from '../store/authStore';
 import { sanitizeHtml } from '../utils/security';
 
@@ -27,29 +28,28 @@ export default function ReviewForm({ productId, onReviewAdded }: ReviewFormProps
 
     setSubmitting(true);
     try {
-      const { error } = await supabase.from('reviews').insert({
+      const reviewsRef = collection(db, 'reviews');
+      await addDoc(reviewsRef, {
         product_id: productId,
         user_id: user.uid,
         rating,
         title: sanitizeHtml(title.trim()),
         comment: sanitizeHtml(comment.trim()),
         is_verified_purchase: false,
+        created_at: new Date().toISOString(),
       });
-      if (error) {
-        if (error.message.includes('unique')) {
-          toast.error('You have already reviewed this product');
-        } else {
-          throw error;
-        }
-        return;
-      }
+
       toast.success('Review submitted!');
       setRating(0);
       setTitle('');
       setComment('');
       onReviewAdded();
-    } catch {
-      toast.error('Failed to submit review');
+    } catch (error: any) {
+      if (error.message?.includes('unique')) {
+        toast.error('You have already reviewed this product');
+      } else {
+        toast.error('Failed to submit review');
+      }
     } finally {
       setSubmitting(false);
     }

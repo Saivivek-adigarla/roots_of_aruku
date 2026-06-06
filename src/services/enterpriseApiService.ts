@@ -1,23 +1,17 @@
 import { retryWithBackoff, cache, rateLimiter, CircuitBreaker } from '../utils/enterpriseOptimization';
-import { supabase } from '../lib/supabase';
-
-// ============================================
-// ENTERPRISE API SERVICE LAYER
-// ============================================
+import {
+  collection, doc, getDoc, getDocs, addDoc, updateDoc,
+  query, where, orderBy, limit, startAfter,
+} from 'firebase/firestore';
+import { db } from '../firebase/config';
 
 // Circuit breaker for database operations
-const dbCircuitBreaker = new CircuitBreaker(
-  { failureThreshold: 5, timeout: 30000 }
-);
+const dbCircuitBreaker = new CircuitBreaker({ failureThreshold: 5, timeout: 30000 });
 
 // 1. OPTIMIZED PRODUCT FETCHING
 export const productsService = {
-  // Cached product list
   getProductsByCategory: async (category: string, page: number = 1, pageSize: number = 20, userId: string | null = null) => {
-    // Rate limit check
-    if (userId) {
-      await rateLimiter.checkLimit(`products:${userId}`);
-    }
+    if (userId) await rateLimiter.checkLimit(`products:${userId}`);
 
     const cacheKey = `products:${category}:${page}:${pageSize}`;
     const cached = cache.get(cacheKey);
@@ -26,72 +20,47 @@ export const productsService = {
     try {
       const result = await dbCircuitBreaker.execute(async () => {
         return await retryWithBackoff(async () => {
-          // Use connection pooling and pagination
-          const { data, error, count } = await supabase
-            .from('products')
-            .select('id, name, offer_price, mrp, category, images, emoji, stock_quantity', {
-              count: 'exact',
-            })
-            .eq('category', category)
-            .eq('status', 'active')
-            .range((page - 1) * pageSize, page * pageSize - 1)
-            .order('created_at', { ascending: false });
-
-          if (error) throw error;
-
-          return {
-            data: data || [],
-            pagination: {
-              page,
-              pageSize,
-              total: count,
-              pages: Math.ceil((count || 0) / pageSize),
-            },
-          };
+          const q = query(
+            collection(db, 'products'),
+            where('category', '==', category),
+            where('status', '==', 'active'),
+            orderBy('created_at', 'desc'),
+            limit(pageSize)
+          );
+          const snap = await getDocs(q);
+          const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          return { data, pagination: { page, pageSize, total: data.length, pages: Math.ceil(data.length / pageSize) } };
         });
       });
-
-      // Cache for 1 hour
       cache.set(cacheKey, result, 3600000);
       return result;
     } catch (error) {
       console.error('Failed to fetch products:', error);
-      // Return empty instead of crashing
       return { data: [], pagination: { page, pageSize, total: 0, pages: 0 } };
     }
   },
 
-  // Search products with full-text search
-  searchProducts: async (query: string, page: number = 1, pageSize: number = 20, userId: string | null = null) => {
-    if (userId) {
-      await rateLimiter.checkLimit(`search:${userId}`);
-    }
+  searchProducts: async (searchQuery: string, page: number = 1, pageSize: number = 20, userId: string | null = null) => {
+    if (userId) await rateLimiter.checkLimit(`search:${userId}`);
 
-    const cacheKey = `search:${query}:${page}:${pageSize}`;
+    const cacheKey = `search:${searchQuery}:${page}:${pageSize}`;
     const cached = cache.get(cacheKey);
     if (cached) return cached;
 
     try {
       const result = await dbCircuitBreaker.execute(async () => {
         return await retryWithBackoff(async () => {
-          const { data, error } = await supabase
-            .rpc('search_products', {
-              search_query: query,
-              page_num: page,
-              page_size: pageSize,
-            });
-
-          if (error) throw error;
-
-          return {
-            data: data || [],
-            page,
-            pageSize,
-          };
+          const q = query(collection(db, 'products'), where('status', '==', 'active'), orderBy('created_at', 'desc'), limit(pageSize));
+          const snap = await getDocs(q);
+          let data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          const lq = searchQuery.toLowerCase();
+          data = data.filter((p: Record<string, unknown>) =>
+            String(p.name).toLowerCase().includes(lq) || String(p.description).toLowerCase().includes(lq)
+          );
+          return { data, page, pageSize };
         });
       });
-
-      cache.set(cacheKey, result, 1800000); // 30 minutes
+      cache.set(cacheKey, result, 1800000);
       return result;
     } catch (error) {
       console.error('Search failed:', error);
@@ -99,11 +68,8 @@ export const productsService = {
     }
   },
 
-  // Get single product with reviews
   getProductDetail: async (productId: string, userId: string | null = null) => {
-    if (userId) {
-      await rateLimiter.checkLimit(`product:${userId}`);
-    }
+    if (userId) await rateLimiter.checkLimit(`product:${userId}`);
 
     const cacheKey = `product:${productId}`;
     const cached = cache.get(cacheKey);
@@ -112,27 +78,18 @@ export const productsService = {
     try {
       const result = await dbCircuitBreaker.execute(async () => {
         return await retryWithBackoff(async () => {
-          // Batch fetch product and reviews
-          const [productRes, reviewsRes] = await Promise.all([
-            supabase.from('products').select('*').eq('id', productId).single(),
-            supabase
-              .from('reviews')
-              .select('*')
-              .eq('product_id', productId)
-              .order('created_at', { ascending: false })
-              .limit(50),
+          const [productSnap, reviewsSnap] = await Promise.all([
+            getDoc(doc(db, 'products', productId)),
+            getDocs(query(collection(db, 'reviews'), where('product_id', '==', productId), orderBy('created_at', 'desc'), limit(50))),
           ]);
-
-          if (productRes.error) throw productRes.error;
-
+          if (!productSnap.exists()) throw new Error('Product not found');
           return {
-            product: productRes.data,
-            reviews: reviewsRes.data || [],
+            product: { id: productSnap.id, ...productSnap.data() },
+            reviews: reviewsSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
           };
         });
       });
-
-      cache.set(cacheKey, result, 1800000); // 30 minutes
+      cache.set(cacheKey, result, 1800000);
       return result;
     } catch (error) {
       console.error('Failed to fetch product detail:', error);
@@ -143,51 +100,32 @@ export const productsService = {
 
 // 2. OPTIMIZED ORDER SERVICE
 export const ordersService = {
-  // Create order with transaction handling
   createOrder: async (userId: string, orderData: { items: { product_id: string; quantity: number }[]; [key: string]: unknown }) => {
     await rateLimiter.checkLimit(`order:${userId}`);
-
     try {
       return await dbCircuitBreaker.execute(async () => {
         return await retryWithBackoff(async () => {
-          // Validate inventory first
           const items = orderData.items;
           const stockChecks = await Promise.all(
-            items.map((item: { product_id: string; quantity: number }) =>
-              supabase
-                .from('products')
-                .select('stock_quantity')
-                .eq('id', item.product_id)
-                .single()
-            )
+            items.map((item: { product_id: string; quantity: number }) => getDoc(doc(db, 'products', item.product_id)))
           );
 
-          // Check if all items are in stock
           for (let i = 0; i < stockChecks.length; i++) {
-            if (stockChecks[i].error) throw stockChecks[i].error;
-            if ((stockChecks[i].data as { stock_quantity: number }).stock_quantity < items[i].quantity) {
-              throw new Error(`Insufficient stock for item ${i + 1}`);
-            }
+            if (!stockChecks[i].exists()) throw new Error(`Product ${items[i].product_id} not found`);
+            const stock = (stockChecks[i].data().stock_quantity as number) || 0;
+            if (stock < items[i].quantity) throw new Error(`Insufficient stock for item ${i + 1}`);
           }
 
-          // Create order
-          const { data, error } = await supabase
-            .from('orders')
-            .insert([
-              {
-                user_id: userId,
-                order_number: `ROA-${Date.now()}`,
-                ...orderData,
-              },
-            ])
-            .select();
+          const { data: insertedData, ...rest } = orderData as { data: unknown };
+          const docRef = await addDoc(collection(db, 'orders'), {
+            user_id: userId,
+            order_number: `ROA-${Date.now()}`,
+            ...rest,
+            created_at: new Date().toISOString(),
+          });
 
-          if (error) throw error;
-
-          // Invalidate user's order cache
           cache.clear();
-
-          return (data as Record<string, unknown>[])[0];
+          return { id: docRef.id };
         });
       });
     } catch (error) {
@@ -196,7 +134,6 @@ export const ordersService = {
     }
   },
 
-  // Get user orders with pagination
   getUserOrders: async (userId: string, page: number = 1, pageSize: number = 20) => {
     await rateLimiter.checkLimit(`orders:${userId}`);
 
@@ -207,28 +144,13 @@ export const ordersService = {
     try {
       const result = await dbCircuitBreaker.execute(async () => {
         return await retryWithBackoff(async () => {
-          const { data, error, count } = await supabase
-            .from('orders')
-            .select('*', { count: 'exact' })
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false })
-            .range((page - 1) * pageSize, page * pageSize - 1);
-
-          if (error) throw error;
-
-          return {
-            data: data || [],
-            pagination: {
-              page,
-              pageSize,
-              total: count,
-              pages: Math.ceil((count || 0) / pageSize),
-            },
-          };
+          const q = query(collection(db, 'orders'), where('user_id', '==', userId), orderBy('created_at', 'desc'), limit(pageSize));
+          const snap = await getDocs(q);
+          const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          return { data, pagination: { page, pageSize, total: data.length, pages: Math.ceil(data.length / pageSize) } };
         });
       });
-
-      cache.set(cacheKey, result, 600000); // 10 minutes
+      cache.set(cacheKey, result, 600000);
       return result;
     } catch (error) {
       console.error('Failed to fetch orders:', error);
@@ -236,11 +158,8 @@ export const ordersService = {
     }
   },
 
-  // Track order status (shorter cache)
   getOrderStatus: async (orderId: string, userId: string | null = null) => {
-    if (userId) {
-      await rateLimiter.checkLimit(`track:${userId}`);
-    }
+    if (userId) await rateLimiter.checkLimit(`track:${userId}`);
 
     const cacheKey = `order:status:${orderId}`;
     const cached = cache.get(cacheKey);
@@ -249,18 +168,12 @@ export const ordersService = {
     try {
       const result = await dbCircuitBreaker.execute(async () => {
         return await retryWithBackoff(async () => {
-          const { data, error } = await supabase
-            .from('orders')
-            .select('id, status, updated_at')
-            .eq('id', orderId)
-            .single();
-
-          if (error) throw error;
-          return data;
+          const snap = await getDoc(doc(db, 'orders', orderId));
+          if (!snap.exists()) throw new Error('Order not found');
+          return { id: snap.id, ...snap.data() };
         });
       });
-
-      cache.set(cacheKey, result, 300000); // 5 minutes (short for real-time updates)
+      cache.set(cacheKey, result, 300000);
       return result;
     } catch (error) {
       console.error('Failed to fetch order status:', error);
@@ -271,7 +184,6 @@ export const ordersService = {
 
 // 3. OPTIMIZED CUSTOMER SERVICE
 export const customersService = {
-  // Get customer profile
   getProfile: async (userId: string) => {
     const cacheKey = `profile:${userId}`;
     const cached = cache.get(cacheKey);
@@ -280,18 +192,11 @@ export const customersService = {
     try {
       const result = await dbCircuitBreaker.execute(async () => {
         return await retryWithBackoff(async () => {
-          const { data, error } = await supabase
-            .from('users')
-            .select('id, name, email, phone, created_at')
-            .eq('id', userId)
-            .single();
-
-          if (error) throw error;
-          return data;
+          const snap = await getDoc(doc(db, 'users', userId));
+          return snap.exists() ? { id: snap.id, ...snap.data() } : null;
         });
       });
-
-      cache.set(cacheKey, result, 3600000); // 1 hour
+      cache.set(cacheKey, result, 3600000);
       return result;
     } catch (error) {
       console.error('Failed to fetch profile:', error);
@@ -299,7 +204,6 @@ export const customersService = {
     }
   },
 
-  // Get customer addresses
   getAddresses: async (userId: string) => {
     const cacheKey = `addresses:${userId}`;
     const cached = cache.get(cacheKey);
@@ -308,18 +212,12 @@ export const customersService = {
     try {
       const result = await dbCircuitBreaker.execute(async () => {
         return await retryWithBackoff(async () => {
-          const { data, error } = await supabase
-            .from('addresses')
-            .select('*')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false });
-
-          if (error) throw error;
-          return data || [];
+          const q = query(collection(db, 'addresses'), where('user_id', '==', userId), orderBy('created_at', 'desc'));
+          const snap = await getDocs(q);
+          return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         });
       });
-
-      cache.set(cacheKey, result, 1800000); // 30 minutes
+      cache.set(cacheKey, result, 1800000);
       return result;
     } catch (error) {
       console.error('Failed to fetch addresses:', error);
@@ -330,44 +228,32 @@ export const customersService = {
 
 // 4. BATCH OPERATIONS FOR ADMIN
 export const batchService = {
-  // Update multiple products
   updateProducts: async (updates: { id: string; data: Record<string, unknown> }[]) => {
     const batchSize = 50;
-    const results: { id: string; data: Record<string, unknown> }[] = [];
+    const results: unknown[] = [];
 
     for (let i = 0; i < updates.length; i += batchSize) {
       const batch = updates.slice(i, i + batchSize);
-
       const batchResults = await Promise.all(
-        batch.map((update: { id: string; data: Record<string, unknown> }) =>
-          supabase
-            .from('products')
-            .update(update.data)
-            .eq('id', update.id)
-        )
+        batch.map((update) => updateDoc(doc(db, 'products', update.id), update.data))
       );
-
       results.push(...batchResults);
     }
 
-    // Invalidate product cache
     cache.clear();
-
     return results;
   },
 
-  // Bulk create orders (admin)
   createBulkOrders: async (orders: Record<string, unknown>[]) => {
     try {
       return await dbCircuitBreaker.execute(async () => {
         return await retryWithBackoff(async () => {
-          const { data, error } = await supabase
-            .from('orders')
-            .insert(orders)
-            .select();
-
-          if (error) throw error;
-          return data;
+          const results = [];
+          for (const order of orders) {
+            const docRef = await addDoc(collection(db, 'orders'), { ...order, created_at: new Date().toISOString() });
+            results.push({ id: docRef.id });
+          }
+          return results;
         });
       });
     } catch (error) {
@@ -379,29 +265,21 @@ export const batchService = {
 
 // 5. ANALYTICS SERVICE
 export const analyticsService = {
-  // Track user action (non-blocking)
   trackAction: async (userId: string, action: string, data: Record<string, unknown>) => {
-    // Fire and forget - don't block user experience
     setTimeout(async () => {
       try {
-        const { error } = await supabase
-          .from('analytics')
-          .insert([
-            {
-              user_id: userId,
-              action,
-              data,
-              timestamp: new Date(),
-            },
-          ]);
-        if (error) console.error('Analytics tracking failed:', error);
+        await addDoc(collection(db, 'analytics'), {
+          user_id: userId,
+          action,
+          data,
+          timestamp: new Date().toISOString(),
+        });
       } catch (err) {
         console.error('Analytics tracking failed:', err);
       }
     }, 0);
   },
 
-  // Get dashboard metrics (cached)
   getDashboardMetrics: async () => {
     const cacheKey = 'metrics:dashboard';
     const cached = cache.get(cacheKey);
@@ -410,22 +288,22 @@ export const analyticsService = {
     try {
       const result = await dbCircuitBreaker.execute(async () => {
         return await retryWithBackoff(async () => {
-          const [ordersRes, productsRes, customersRes] = await Promise.all([
-            supabase.from('orders').select('id, total_amount', { count: 'exact' }),
-            supabase.from('products').select('id, stock_quantity', { count: 'exact' }).eq('status', 'active'),
-            supabase.from('users').select('id', { count: 'exact' }).eq('role', 'customer'),
+          const [ordersSnap, productsSnap, customersSnap] = await Promise.all([
+            getDocs(collection(db, 'orders')),
+            getDocs(query(collection(db, 'products'), where('status', '==', 'active'))),
+            getDocs(query(collection(db, 'users'), where('role', '==', 'customer'))),
           ]);
 
+          const orders = ordersSnap.docs.map((d) => d.data());
           return {
-            totalOrders: ordersRes.count,
-            totalRevenue: ordersRes.data?.reduce((sum, o) => sum + (o.total_amount || 0), 0) || 0,
-            activeProducts: productsRes.count,
-            totalCustomers: customersRes.count,
+            totalOrders: ordersSnap.size,
+            totalRevenue: orders.reduce((sum, o) => sum + ((o.total_amount as number) || 0), 0),
+            activeProducts: productsSnap.size,
+            totalCustomers: customersSnap.size,
           };
         });
       });
-
-      cache.set(cacheKey, result, 600000); // 10 minutes
+      cache.set(cacheKey, result, 600000);
       return result;
     } catch (error) {
       console.error('Failed to fetch metrics:', error);
@@ -434,10 +312,4 @@ export const analyticsService = {
   },
 };
 
-export default {
-  productsService,
-  ordersService,
-  customersService,
-  batchService,
-  analyticsService,
-};
+export default { productsService, ordersService, customersService, batchService, analyticsService };

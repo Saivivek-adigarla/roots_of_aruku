@@ -1,120 +1,94 @@
-import { supabase } from '../lib/supabase';
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  sendPasswordResetEmail,
+  onAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithPopup,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  type ConfirmationResult,
+  type User as FirebaseUser,
+} from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { auth, db } from '../firebase/config';
 import { User } from '../types';
-import { upsertUserProfile, fetchUserProfile } from './database';
+
+const googleProvider = new GoogleAuthProvider();
+
+let confirmationResult: ConfirmationResult | null = null;
+
+const mapFirebaseUser = async (fbUser: FirebaseUser): Promise<User> => {
+  const profile = await fetchUserProfile(fbUser.uid);
+  const isAdminEmail = fbUser.email === import.meta.env.VITE_ADMIN_EMAIL;
+
+  return {
+    uid: fbUser.uid,
+    name: profile?.name || fbUser.displayName || fbUser.email?.split('@')[0] || 'User',
+    email: fbUser.email || '',
+    phone: profile?.phone || fbUser.phoneNumber?.replace('+91', '') || '',
+    isAdmin: profile?.role === 'admin' || isAdminEmail,
+  };
+};
 
 export const authService = {
   // Email + Password Login
   loginWithEmail: async (email: string, password: string): Promise<User> => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email: email.toLowerCase().trim(), password });
-    if (error) throw error;
-    if (!data.user) throw new Error('Login failed: no user returned');
-
-    const profile = await fetchUserProfile(data.user.id);
-    const isAdminEmail = email === import.meta.env.VITE_ADMIN_EMAIL;
-
-    const user: User = {
-      uid: data.user.id,
-      name: profile?.name || data.user.user_metadata?.name || data.user.email?.split('@')[0] || 'User',
-      email: data.user.email || email,
-      phone: profile?.phone || data.user.user_metadata?.phone || '',
-      isAdmin: profile?.role === 'admin' || isAdminEmail,
-    };
-
-    return user;
+    const credential = await signInWithEmailAndPassword(auth, email.toLowerCase().trim(), password);
+    return mapFirebaseUser(credential.user);
   },
 
   // Email + Password Signup
   registerWithEmail: async (email: string, password: string, displayName: string, phone?: string): Promise<User> => {
-    const { data, error } = await supabase.auth.signUp({
-      email: email.toLowerCase().trim(),
-      password,
-      options: {
-        data: { name: displayName, phone: phone || '' },
-      },
-    });
-    if (error) throw error;
-    if (!data.user) throw new Error('Registration failed: no user returned');
-
-    await upsertUserProfile(data.user.id, email, displayName, phone || '', 'customer');
-
-    return {
-      uid: data.user.id,
-      name: displayName,
-      email: data.user.email || email,
-      phone: phone || '',
-      isAdmin: false,
-    };
+    const credential = await createUserWithEmailAndPassword(auth, email.toLowerCase().trim(), password);
+    await upsertUserProfile(credential.user.uid, email, displayName, phone || '', 'customer');
+    return mapFirebaseUser(credential.user);
   },
 
   // Phone OTP Login
   loginWithPhone: async (phone: string): Promise<void> => {
-    const { error } = await supabase.auth.signInWithOtp({
-      phone: `+91${phone.replace(/\D/g, '').slice(-10)}`,
-    });
-    if (error) throw error;
+    const formattedPhone = `+91${phone.replace(/\D/g, '').slice(-10)}`;
+    if (!auth) throw new Error('Auth not initialized');
+    const recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
+    confirmationResult = await signInWithPhoneNumber(auth, formattedPhone, recaptchaVerifier);
   },
 
   // Verify Phone OTP
   verifyPhoneOtp: async (phone: string, otp: string): Promise<User> => {
-    const { data, error } = await supabase.auth.verifyOtp({
-      phone: `+91${phone.replace(/\D/g, '').slice(-10)}`,
-      token: otp,
-      type: 'sms',
-    });
-    if (error) throw error;
-    if (!data.user) throw new Error('OTP verification failed: no user returned');
-
-    const profile = await fetchUserProfile(data.user.id);
-
-    const user: User = {
-      uid: data.user.id,
-      name: profile?.name || data.user.user_metadata?.name || 'User',
-      email: profile?.email || data.user.email || '',
-      phone: phone.replace(/\D/g, '').slice(-10),
-      isAdmin: profile?.role === 'admin',
-    };
-
-    // Ensure profile exists
+    if (!confirmationResult) throw new Error('No OTP request pending');
+    const credential = await confirmationResult.confirm(otp);
+    const user = await mapFirebaseUser(credential.user);
+    const profile = await fetchUserProfile(credential.user.uid);
     if (!profile) {
-      await upsertUserProfile(data.user!.id, user.email, user.name, user.phone, 'customer');
+      await upsertUserProfile(credential.user.uid, user.email, user.name, phone.replace(/\D/g, '').slice(-10), 'customer');
     }
-
+    confirmationResult = null;
     return user;
   },
 
   // Google Sign-In
   loginWithGoogle: async (): Promise<void> => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/`,
-      },
-    });
-    if (error) throw error;
+    await signInWithPopup(auth, googleProvider);
   },
 
   // Logout
   logout: async (): Promise<void> => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    await signOut(auth);
   },
 
   // Get current authenticated user
   getCurrentUser: async (): Promise<User | null> => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) return null;
-
-    const sessionUser = session.user;
-    const profile = await fetchUserProfile(sessionUser.id);
-    const isAdminEmail = sessionUser.email === import.meta.env.VITE_ADMIN_EMAIL;
-
-    return {
-      uid: sessionUser.id,
-      name: profile?.name || sessionUser.user_metadata?.name || sessionUser.email?.split('@')[0] || 'User',
-      email: sessionUser.email || '',
-      phone: profile?.phone || sessionUser.user_metadata?.phone || sessionUser.phone || '',
-      isAdmin: profile?.role === 'admin' || isAdminEmail,
-    };
+    return new Promise((resolve) => {
+      const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+        unsubscribe();
+        if (fbUser) {
+          resolve(await mapFirebaseUser(fbUser));
+        } else {
+          resolve(null);
+        }
+      });
+    });
   },
 
   // Update profile
@@ -130,30 +104,41 @@ export const authService = {
 
   // Password reset
   resetPassword: async (email: string): Promise<void> => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email.toLowerCase().trim(), {
-      redirectTo: `${window.location.origin}/forgot-password`,
-    });
-    if (error) throw error;
+    await sendPasswordResetEmail(auth, email.toLowerCase().trim());
   },
 
   // Listen to auth state changes
   onAuthStateChange: (callback: (user: User | null) => void) => {
-    supabase.auth.onAuthStateChange((_event, session) => {
-      (async () => {
-        if (session?.user) {
-          const profile = await fetchUserProfile(session.user.id);
-          const isAdminEmail = session.user.email === import.meta.env.VITE_ADMIN_EMAIL;
-          callback({
-            uid: session.user.id,
-            name: profile?.name || session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
-            email: session.user.email || '',
-            phone: profile?.phone || session.user.user_metadata?.phone || session.user.phone || '',
-            isAdmin: profile?.role === 'admin' || isAdminEmail,
-          });
-        } else {
-          callback(null);
-        }
-      })();
+    onAuthStateChanged(auth, async (fbUser) => {
+      if (fbUser) {
+        const user = await mapFirebaseUser(fbUser);
+        callback(user);
+      } else {
+        callback(null);
+      }
     });
   },
 };
+
+// Firestore profile helpers
+export async function upsertUserProfile(userId: string, email: string, name: string, phone: string, role: string = 'customer') {
+  const ref = doc(db, 'users', userId);
+  const existing = await getDoc(ref);
+  const data = {
+    id: userId,
+    name,
+    email,
+    phone,
+    role,
+    updated_at: new Date().toISOString(),
+    ...(existing.exists() ? {} : { created_at: new Date().toISOString() }),
+  };
+  await setDoc(ref, data, { merge: true });
+  return data;
+}
+
+export async function fetchUserProfile(userId: string) {
+  const ref = doc(db, 'users', userId);
+  const snap = await getDoc(ref);
+  return snap.exists() ? snap.data() as Record<string, unknown> : null;
+}

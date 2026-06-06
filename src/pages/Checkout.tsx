@@ -18,7 +18,8 @@ import {
   validateCsrfToken,
   generateSecureId,
 } from '../utils/security';
-import { supabase } from '../lib/supabase';
+import { db } from '../firebase/config';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { createOrder, fetchAddresses, saveAddress as saveDbAddress } from '../services/database';
 import { generatePaymentQR, MERCHANT_UPI, openUPIApp } from '../utils/upiPayment';
 
@@ -89,16 +90,20 @@ export default function Checkout() {
     if (!code) { toast.error('Enter a coupon code'); return; }
     setCouponLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('coupons')
-        .select('*')
-        .eq('code', code)
-        .eq('is_active', true)
-        .lte('valid_from', new Date().toISOString())
-        .gte('valid_until', new Date().toISOString())
-        .maybeSingle();
-      if (error) throw error;
-      if (!data) { toast.error('Invalid or expired coupon'); return; }
+      const now = new Date().toISOString();
+      const couponsRef = collection(db, 'coupons');
+      const q = query(
+        couponsRef,
+        where('code', '==', code),
+        where('is_active', '==', true),
+        where('valid_from', '<=', now),
+        where('valid_until', '>=', now)
+      );
+      const snapshot = await getDocs(q);
+
+      if (snapshot.empty) { toast.error('Invalid or expired coupon'); return; }
+
+      const data = snapshot.docs[0].data();
       if (data.min_order_value > subtotal) { toast.error(`Minimum order ₹${data.min_order_value} required`); return; }
       if (data.usage_limit && data.used_count >= data.usage_limit) { toast.error('Coupon limit reached'); return; }
 

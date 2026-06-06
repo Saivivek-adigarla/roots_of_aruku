@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { DollarSign, CreditCard, TrendingUp, Filter } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { db } from '../firebase/config';
+import { collection, getDocs } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 
 interface PaymentStats {
@@ -25,27 +26,23 @@ export default function AdminPaymentAnalytics() {
   const fetchPaymentAnalytics = async () => {
     setLoading(true);
     try {
-      let query = supabase
-        .from('orders')
-        .select('payment_method, total_amount, delivery_charge, status, created_at');
+      const snapshot = await getDocs(collection(db, 'orders'));
+      let orders = snapshot.docs.map(d => ({ ...d.data() })) as any[];
 
       // Apply date filter
       const now = new Date();
       if (filter === 'today') {
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-        query = query.gte('created_at', today);
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        orders = orders.filter(o => new Date(o.created_at) >= today);
       } else if (filter === 'week') {
-        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-        query = query.gte('created_at', weekAgo);
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        orders = orders.filter(o => new Date(o.created_at) >= weekAgo);
       } else if (filter === 'month') {
-        const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-        query = query.gte('created_at', monthAgo);
+        const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        orders = orders.filter(o => new Date(o.created_at) >= monthAgo);
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
-
-      const orders = (data || []).filter((o) => o.status !== 'cancelled');
+      orders = orders.filter((o) => o.status !== 'cancelled');
 
       // Calculate stats by payment method
       const paymentMap: Record<string, { count: number; revenue: number }> = {
@@ -107,7 +104,6 @@ export default function AdminPaymentAnalytics() {
         </select>
       </div>
 
-      {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg">
           <div className="flex items-center justify-between mb-2">
@@ -137,7 +133,6 @@ export default function AdminPaymentAnalytics() {
         </div>
       </div>
 
-      {/* Payment Method Breakdown */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <h2 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
           <CreditCard size={20} className="text-maroon-700" />
@@ -158,7 +153,6 @@ export default function AdminPaymentAnalytics() {
                 </div>
               </div>
 
-              {/* Progress bar */}
               <div className="w-full bg-gray-100 rounded-full h-2">
                 <div
                   className={`h-2 rounded-full transition-all ${
@@ -187,7 +181,6 @@ export default function AdminPaymentAnalytics() {
         </div>
       </div>
 
-      {/* Summary Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {stats.map((stat) => (
           <div key={`mini-${stat.paymentMethod}`} className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 text-center">

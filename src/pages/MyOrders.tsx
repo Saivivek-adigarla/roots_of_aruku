@@ -4,7 +4,8 @@ import { useAuthStore } from '../store/authStore';
 import { useNavigate, Link } from 'react-router-dom';
 import { useCartStore } from '../store/cartStore';
 import { fetchUserOrders } from '../services/database';
-import { supabase } from '../lib/supabase';
+import { db } from '../firebase/config';
+import { doc, getDoc } from 'firebase/firestore';
 import { secureStorage } from '../utils/security';
 import toast from 'react-hot-toast';
 
@@ -68,14 +69,12 @@ export default function MyOrders() {
       setReorderingId(order.order_number);
       let hasProduct = false;
       for (const item of order.order_items) {
-        const { data: product } = await supabase
-          .from('products')
-          .select('*')
-          .eq('id', item.product_id)
-          .maybeSingle();
+        const productRef = doc(db, 'products', item.product_id);
+        const productSnap = await getDoc(productRef);
 
-        if (product) {
-          addItem({ ...product, qty: item.quantity });
+        if (productSnap.exists()) {
+          const product = productSnap.data();
+          addItem({ ...product, id: productSnap.id, qty: item.quantity } as any);
           hasProduct = true;
         }
       }

@@ -1,78 +1,104 @@
-import { supabase } from '../lib/supabase';
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  addDoc,
+  query,
+  where,
+  orderBy,
+  limit,
+  startAfter,
+  type DocumentSnapshot,
+  type QueryConstraint,
+} from 'firebase/firestore';
+import { db } from '../firebase/config';
 import type { Address, Product } from '../types';
+import { fetchUserProfile, upsertUserProfile } from './authService';
 
 // Product helpers
 export async function fetchProducts(filters?: { category?: string; featured?: boolean; status?: string }) {
-  let query = supabase.from('products').select('*').order('created_at', { ascending: false });
-  if (filters?.category) query = query.eq('category', filters.category);
-  if (filters?.featured) query = query.eq('featured', true);
-  if (filters?.status) query = query.eq('status', filters.status);
-  else query = query.neq('status', 'discontinued');
+  const constraints: QueryConstraint[] = [];
+  if (filters?.category) constraints.push(where('category', '==', filters.category));
+  if (filters?.featured) constraints.push(where('featured', '==', true));
+  if (filters?.status) constraints.push(where('status', '==', filters.status));
+  else constraints.push(where('status', '!=', 'discontinued'));
 
-  const { data, error } = await query;
-  if (error) throw error;
-  return (data || []).map(mapDbProduct);
+  constraints.push(orderBy('created_at', 'desc'));
+
+  const q = query(collection(db, 'products'), ...constraints);
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => mapDbProduct(d));
 }
 
 export async function fetchProductById(id: string) {
-  const { data, error } = await supabase.from('products').select('*').eq('id', id).maybeSingle();
-  if (error) throw error;
-  return data ? mapDbProduct(data) : null;
+  const ref = doc(db, 'products', id);
+  const snap = await getDoc(ref);
+  return snap.exists() ? mapDbProduct(snap) : null;
 }
 
-export async function searchProducts(query: string, category?: string, sortBy?: string, priceRange?: [number, number]) {
-  let q = supabase.from('products').select('*').neq('status', 'discontinued');
-  if (category) q = q.eq('category', category);
+export async function searchProducts(searchQuery: string, category?: string, sortBy?: string, priceRange?: [number, number]) {
+  const constraints: QueryConstraint[] = [];
+  constraints.push(where('status', '!=', 'discontinued'));
+  if (category) constraints.push(where('category', '==', category));
+
+  constraints.push(orderBy('created_at', 'desc'));
+
+  const q = query(collection(db, 'products'), ...constraints);
+  const snap = await getDocs(q);
+  let results = snap.docs.map((d) => mapDbProduct(d));
+
   if (priceRange) {
-    q = q.gte('offer_price', priceRange[0]).lte('offer_price', priceRange[1]);
+    results = results.filter((p) => p.offerPrice >= priceRange[0] && p.offerPrice <= priceRange[1]);
   }
 
-  switch (sortBy) {
-    case 'price-low': q = q.order('offer_price', { ascending: true }); break;
-    case 'price-high': q = q.order('offer_price', { ascending: false }); break;
-    case 'newest': q = q.order('created_at', { ascending: false }); break;
-    default: q = q.order('created_at', { ascending: false });
-  }
-
-  const { data, error } = await q;
-  if (error) throw error;
-
-  let results = (data || []).map(mapDbProduct);
-  if (query) {
-    const lq = query.toLowerCase();
+  if (searchQuery) {
+    const lq = searchQuery.toLowerCase();
     results = results.filter((p) =>
       p.name.toLowerCase().includes(lq) || p.description.toLowerCase().includes(lq)
     );
   }
+
+  switch (sortBy) {
+    case 'price-low': results.sort((a, b) => a.offerPrice - b.offerPrice); break;
+    case 'price-high': results.sort((a, b) => b.offerPrice - a.offerPrice); break;
+    case 'newest': break; // already sorted by created_at desc
+    default: break;
+  }
+
   return results;
 }
 
-function mapDbProduct(db: Record<string, unknown>): Product {
+function mapDbProduct(snap: DocumentSnapshot): Product {
+  const d = snap.data()!;
   return {
-    id: db.id as string,
-    name: db.name as string,
-    description: db.description as string,
-    category: db.category as Product['category'],
-    weight: db.weight as string,
-    mrp: db.mrp as number,
-    sellingPrice: db.selling_price as number,
-    offerPrice: db.offer_price as number,
-    benefits: (db.benefits as string[]) || [],
-    status: db.status as Product['status'],
-    showOfferBadge: (db.mrp as number) > (db.offer_price as number),
-    featured: db.featured as boolean,
-    images: (db.images as string[]) || [],
-    emoji: (db.emoji as string) || '',
-    stockQuantity: db.stock_quantity as number,
-    createdAt: db.created_at,
+    id: snap.id,
+    name: d.name as string,
+    description: d.description as string,
+    category: d.category as Product['category'],
+    weight: d.weight as string,
+    mrp: d.mrp as number,
+    sellingPrice: d.selling_price as number,
+    offerPrice: d.offer_price as number,
+    benefits: (d.benefits as string[]) || [],
+    status: d.status as Product['status'],
+    showOfferBadge: (d.mrp as number) > (d.offer_price as number),
+    featured: d.featured as boolean,
+    images: (d.images as string[]) || [],
+    emoji: (d.emoji as string) || '',
+    stockQuantity: d.stock_quantity as number,
+    createdAt: d.created_at,
   };
 }
 
 // Address helpers
 export async function fetchAddresses(userId: string) {
-  const { data, error } = await supabase.from('addresses').select('*').eq('user_id', userId).order('created_at', { ascending: false });
-  if (error) throw error;
-  return (data || []).map(mapDbAddress);
+  const q = query(collection(db, 'addresses'), where('user_id', '==', userId), orderBy('created_at', 'desc'));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => mapDbAddress(d));
 }
 
 export async function saveAddress(userId: string, addr: Address) {
@@ -88,33 +114,33 @@ export async function saveAddress(userId: string, addr: Address) {
     is_default: false,
   };
 
-  const existing = addr.id && addr.id.length > 10; // UUID format = real DB record
+  const existing = addr.id && addr.id.length > 10;
   if (existing) {
-    const { data, error } = await supabase.from('addresses').update(payload).eq('id', addr.id).select().maybeSingle();
-    if (error) throw error;
-    return data ? mapDbAddress(data) : addr;
+    const ref = doc(db, 'addresses', addr.id);
+    await updateDoc(ref, payload);
+    return addr;
   } else {
-    const { data, error } = await supabase.from('addresses').insert(payload).select().maybeSingle();
-    if (error) throw error;
-    return data ? mapDbAddress(data) : addr;
+    const colRef = collection(db, 'addresses');
+    const docRef = await addDoc(colRef, { ...payload, created_at: new Date().toISOString() });
+    return { ...addr, id: docRef.id };
   }
 }
 
 export async function deleteAddress(id: string) {
-  const { error } = await supabase.from('addresses').delete().eq('id', id);
-  if (error) throw error;
+  await deleteDoc(doc(db, 'addresses', id));
 }
 
-function mapDbAddress(db: Record<string, unknown>): Address {
+function mapDbAddress(snap: DocumentSnapshot): Address {
+  const d = snap.data()!;
   return {
-    id: db.id as string,
-    name: db.name as string,
-    phone: db.phone as string,
-    address: db.address as string,
-    city: db.city as string,
-    state: db.state as string,
-    pincode: db.pincode as string,
-    landmark: (db.landmark as string) || '',
+    id: snap.id,
+    name: d.name as string,
+    phone: d.phone as string,
+    address: d.address as string,
+    city: d.city as string,
+    state: d.state as string,
+    pincode: d.pincode as string,
+    landmark: (d.landmark as string) || '',
   };
 }
 
@@ -141,7 +167,7 @@ export async function createOrder(order: {
     landmark: order.address.landmark || '',
   };
 
-  const { data: orderData, error: orderError } = await supabase.from('orders').insert({
+  const orderData = {
     order_number: order.orderNumber,
     user_id: order.userId,
     status: order.paymentMethod === 'cod' ? 'confirmed' : 'paid',
@@ -151,13 +177,15 @@ export async function createOrder(order: {
     payment_status: order.paymentStatus,
     payment_id: order.paymentId || null,
     address_snapshot: addressSnapshot,
-  }).select().maybeSingle();
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
 
-  if (orderError) throw orderError;
-  if (!orderData) throw new Error('Failed to create order');
+  const orderRef = await addDoc(collection(db, 'orders'), orderData);
 
+  // Add order items as subcollection
   const orderItems = order.items.map((item) => ({
-    order_id: orderData.id,
+    order_id: orderRef.id,
     product_id: item.productId,
     product_name: item.productName,
     weight: item.weight,
@@ -166,51 +194,47 @@ export async function createOrder(order: {
     total_price: item.totalPrice,
   }));
 
-  const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
-  if (itemsError) throw itemsError;
+  for (const item of orderItems) {
+    await addDoc(collection(db, 'order_items'), item);
+  }
 
   // Increment coupon usage if applicable
   if (order.couponCode) {
-    const { error: rpcError } = await supabase.rpc('increment_coupon_usage', { coupon_code: order.couponCode });
-    if (rpcError) {
-      // Fallback: try manual increment (best effort)
-      void supabase.from('coupons').update({ used_count: 1 }).eq('code', order.couponCode);
+    try {
+      const couponRef = doc(db, 'coupons', order.couponCode);
+      const couponSnap = await getDoc(couponRef);
+      if (couponSnap.exists()) {
+        const currentCount = (couponSnap.data().used_count as number) || 0;
+        await updateDoc(couponRef, { used_count: currentCount + 1 });
+      }
+    } catch {
+      // Best effort
     }
   }
 
-  return orderData;
+  return { id: orderRef.id, ...orderData };
 }
 
 export async function fetchUserOrders(userId: string) {
-  const { data, error } = await supabase
-    .from('orders')
-    .select('*, order_items(*)')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-  return data || [];
+  const q = query(collection(db, 'orders'), where('user_id', '==', userId), orderBy('created_at', 'desc'));
+  const snap = await getDocs(q);
+
+  const orders = [];
+  for (const orderDoc of snap.docs) {
+    const orderData = orderDoc.data();
+    const itemsQ = query(collection(db, 'order_items'), where('order_id', '==', orderDoc.id));
+    const itemsSnap = await getDocs(itemsQ);
+    const orderItems = itemsSnap.docs.map((d) => d.data());
+    orders.push({ id: orderDoc.id, ...orderData, order_items: orderItems });
+  }
+
+  return orders;
 }
 
-// User profile helpers
-export async function upsertUserProfile(userId: string, email: string, name: string, phone: string, role: string = 'customer') {
-  const { data, error } = await supabase.from('users').upsert({
-    id: userId,
-    name,
-    email,
-    phone,
-    role,
-  }, { onConflict: 'id' }).select().maybeSingle();
-  if (error) throw error;
-  return data;
-}
-
-export async function fetchUserProfile(userId: string) {
-  const { data, error } = await supabase.from('users').select('*').eq('id', userId).maybeSingle();
-  if (error) throw error;
-  return data;
-}
+// Re-export profile helpers from authService
+export { upsertUserProfile, fetchUserProfile };
 
 export async function updateUserProfile(userId: string, updates: { name?: string; phone?: string }) {
-  const { error } = await supabase.from('users').update(updates).eq('id', userId);
-  if (error) throw error;
+  const ref = doc(db, 'users', userId);
+  await updateDoc(ref, updates);
 }

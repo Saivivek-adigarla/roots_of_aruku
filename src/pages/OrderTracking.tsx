@@ -5,7 +5,8 @@ import OrderTimeline from '../components/OrderTimeline';
 import { secureStorage } from '../utils/security';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
-import { supabase } from '../lib/supabase';
+import { db } from '../firebase/config';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import type { Order } from '../types';
 
@@ -40,16 +41,24 @@ export default function OrderTracking() {
     const fetchOrder = async () => {
       try {
         if (user?.uid && id) {
-          const { data, error } = await supabase
-            .from('orders')
-            .select('*, order_items(*)')
-            .eq('order_number', id)
-            .eq('user_id', user.uid)
-            .maybeSingle();
+          const ordersRef = collection(db, 'orders');
+          const q = query(
+            ordersRef,
+            where('order_number', '==', id),
+            where('user_id', '==', user.uid)
+          );
+          const snapshot = await getDocs(q);
 
-          if (error) throw error;
-          if (data) {
-            setOrder(data);
+          if (!snapshot.empty) {
+            const orderDoc = snapshot.docs[0];
+            const orderData = orderDoc.data();
+
+            // Fetch order_items subcollection
+            const itemsRef = collection(db, 'orders', orderDoc.id, 'order_items');
+            const itemsSnapshot = await getDocs(itemsRef);
+            const items = itemsSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
+            setOrder({ ...orderData, order_items: items } as any);
             return;
           }
         }
@@ -80,14 +89,12 @@ export default function OrderTracking() {
       setReordering(true);
       let hasProduct = false;
       for (const item of order.order_items) {
-        const { data: product } = await supabase
-          .from('products')
-          .select('*')
-          .eq('id', item.product_id)
-          .maybeSingle();
+        const productRef = doc(db, 'products', item.product_id);
+        const productSnap = await getDoc(productRef);
 
-        if (product) {
-          addItem({ ...product, qty: item.quantity });
+        if (productSnap.exists()) {
+          const product = productSnap.data();
+          addItem({ ...product, id: productSnap.id, qty: item.quantity } as any);
           hasProduct = true;
         }
       }

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, X, Upload, Package } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { supabase } from '../lib/supabase';
+import { db } from '../firebase/config';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
 import { isValidName, sanitizeHtml, isValidPrice } from '../utils/security';
 
 interface Product {
@@ -64,12 +65,10 @@ export default function AdminProducts() {
   const fetchProducts = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      setProducts(data || []);
+      const q = query(collection(db, 'products'), orderBy('created_at', 'desc'));
+      const snapshot = await getDocs(q);
+      const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Product[];
+      setProducts(data);
     } catch {
       toast.error('Failed to load products');
     } finally {
@@ -164,24 +163,28 @@ export default function AdminProducts() {
       };
 
       if (editing) {
-        const { error } = await supabase
-          .from('products')
-          .update(payload)
-          .eq('id', editing.id);
-        if (error) throw error;
+        await updateDoc(doc(db, 'products', editing.id), payload);
         toast.success('Product updated');
       } else {
-        const { error } = await supabase
-          .from('products')
-          .insert(payload);
-        if (error) throw error;
+        // Check for duplicate slug
+        const snapshot = await getDocs(collection(db, 'products'));
+        const exists = snapshot.docs.some(d => d.data().slug === payload.slug);
+        if (exists) {
+          toast.error('Product with this slug already exists');
+          setSaving(false);
+          return;
+        }
+        await addDoc(collection(db, 'products'), {
+          ...payload,
+          created_at: new Date(),
+        });
         toast.success('Product added');
       }
       setShowForm(false);
       fetchProducts();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Save failed';
-      toast.error(msg.includes('unique') ? 'Product with this slug already exists' : 'Failed to save product');
+      toast.error('Failed to save product');
     } finally {
       setSaving(false);
     }
@@ -190,8 +193,7 @@ export default function AdminProducts() {
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this product? This cannot be undone.')) return;
     try {
-      const { error } = await supabase.from('products').delete().eq('id', id);
-      if (error) throw error;
+      await deleteDoc(doc(db, 'products', id));
       toast.success('Product deleted');
       fetchProducts();
     } catch {

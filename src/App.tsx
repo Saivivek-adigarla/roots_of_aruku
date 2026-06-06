@@ -85,17 +85,26 @@ function ProtectedPages({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+const SPLASH_KEY = 'roa_splash_shown';
+
 function App() {
   const initialize = useAuthStore((s) => s.initialize);
   const initialized = useAuthStore((s) => s.initialized);
-  const [splashComplete, setSplashComplete] = useState(false);
+  const [splashComplete, setSplashComplete] = useState(() => {
+    return sessionStorage.getItem(SPLASH_KEY) === 'true';
+  });
 
   useEffect(() => {
     initialize();
   }, [initialize]);
 
+  const handleSplashComplete = () => {
+    sessionStorage.setItem(SPLASH_KEY, 'true');
+    setSplashComplete(true);
+  };
+
   if (!initialized) return <LoadingFallback />;
-  if (!splashComplete) return <SplashScreen onComplete={() => setSplashComplete(true)} />;
+  if (!splashComplete) return <SplashScreen onComplete={handleSplashComplete} />;
 
   return (
     <BrowserRouter>
@@ -112,126 +121,32 @@ function App() {
           <Route path="/signup" element={<Signup />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
 
-          {/* Public Routes - No auth required */}
-          <Route path="/" element={
-            <MainLayout>
-              <Home />
-            </MainLayout>
-          } />
-          <Route path="/products" element={
-            <MainLayout>
-              <Products />
-            </MainLayout>
-          } />
-          <Route path="/product/:id" element={
-            <MainLayout>
-              <ProductDetail />
-            </MainLayout>
-          } />
-          <Route path="/search" element={
-            <MainLayout>
-              <Search />
-            </MainLayout>
-          } />
-          <Route path="/about" element={
-            <MainLayout>
-              <About />
-            </MainLayout>
-          } />
-          <Route path="/contact" element={
-            <MainLayout>
-              <Contact />
-            </MainLayout>
-          } />
-          <Route path="/cart" element={
-            <MainLayout>
-              <Cart />
-            </MainLayout>
-          } />
-          <Route path="/story" element={
-            <OurStory />
-          } />
-          <Route path="/faq" element={
-            <FAQ />
-          } />
-          <Route path="/blog" element={
-            <MainLayout>
-              <Blog />
-            </MainLayout>
-          } />
-          <Route path="/blog/:slug" element={
-            <MainLayout>
-              <BlogPost />
-            </MainLayout>
-          } />
-          <Route path="/privacy" element={
-            <PrivacyPolicy />
-          } />
-          <Route path="/terms" element={
-            <TermsAndConditions />
-          } />
-          <Route path="/returns" element={
-            <ReturnsPolicy />
-          } />
-          <Route path="/shipping" element={
-            <ShippingPolicy />
-          } />
-          <Route path="/wholesale" element={
-            <MainLayout>
-              <Wholesale />
-            </MainLayout>
-          } />
+          {/* Public Routes */}
+          <Route path="/" element={<MainLayout><Home /></MainLayout>} />
+          <Route path="/products" element={<MainLayout><Products /></MainLayout>} />
+          <Route path="/product/:id" element={<MainLayout><ProductDetail /></MainLayout>} />
+          <Route path="/search" element={<MainLayout><Search /></MainLayout>} />
+          <Route path="/about" element={<MainLayout><About /></MainLayout>} />
+          <Route path="/contact" element={<MainLayout><Contact /></MainLayout>} />
+          <Route path="/cart" element={<MainLayout><Cart /></MainLayout>} />
+          <Route path="/story" element={<OurStory />} />
+          <Route path="/faq" element={<FAQ />} />
+          <Route path="/blog" element={<MainLayout><Blog /></MainLayout>} />
+          <Route path="/blog/:slug" element={<MainLayout><BlogPost /></MainLayout>} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/terms" element={<TermsAndConditions />} />
+          <Route path="/returns" element={<ReturnsPolicy />} />
+          <Route path="/shipping" element={<ShippingPolicy />} />
+          <Route path="/wholesale" element={<MainLayout><Wholesale /></MainLayout>} />
 
-          {/* Protected Routes - Auth required */}
-          <Route path="/checkout" element={
-            <ProtectedPages>
-              <MainLayout>
-                <Checkout />
-              </MainLayout>
-            </ProtectedPages>
-          } />
-          <Route path="/order-success" element={
-            <ProtectedPages>
-              <MainLayout>
-                <OrderSuccess />
-              </MainLayout>
-            </ProtectedPages>
-          } />
-          <Route path="/order/:id" element={
-            <ProtectedPages>
-              <MainLayout>
-                <OrderTracking />
-              </MainLayout>
-            </ProtectedPages>
-          } />
-          <Route path="/wishlist" element={
-            <ProtectedPages>
-              <MainLayout>
-                <Wishlist />
-              </MainLayout>
-            </ProtectedPages>
-          } />
-          <Route path="/profile" element={
-            <ProtectedPages>
-              <MainLayout>
-                <Profile />
-              </MainLayout>
-            </ProtectedPages>
-          } />
-          <Route path="/orders" element={
-            <ProtectedPages>
-              <MainLayout>
-                <MyOrders />
-              </MainLayout>
-            </ProtectedPages>
-          } />
-          <Route path="/addresses" element={
-            <ProtectedPages>
-              <MainLayout>
-                <Addresses />
-              </MainLayout>
-            </ProtectedPages>
-          } />
+          {/* Protected Routes */}
+          <Route path="/checkout" element={<ProtectedPages><MainLayout><Checkout /></MainLayout></ProtectedPages>} />
+          <Route path="/order-success" element={<ProtectedPages><MainLayout><OrderSuccess /></MainLayout></ProtectedPages>} />
+          <Route path="/order/:id" element={<ProtectedPages><MainLayout><OrderTracking /></MainLayout></ProtectedPages>} />
+          <Route path="/wishlist" element={<ProtectedPages><MainLayout><Wishlist /></MainLayout></ProtectedPages>} />
+          <Route path="/profile" element={<ProtectedPages><MainLayout><Profile /></MainLayout></ProtectedPages>} />
+          <Route path="/orders" element={<ProtectedPages><MainLayout><MyOrders /></MainLayout></ProtectedPages>} />
+          <Route path="/addresses" element={<ProtectedPages><MainLayout><Addresses /></MainLayout></ProtectedPages>} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />

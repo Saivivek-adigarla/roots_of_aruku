@@ -1,4 +1,7 @@
 import { initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 import { getAnalytics } from 'firebase/analytics';
 
 const firebaseConfig = {
@@ -13,11 +16,15 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+export const storage = getStorage(app);
+
 let analytics: ReturnType<typeof getAnalytics> | null = null;
 try {
   analytics = getAnalytics(app);
 } catch {
-  // Analytics unavailable (e.g. SSR or ad blocker)
+  // Analytics unavailable
 }
 
 export { analytics };

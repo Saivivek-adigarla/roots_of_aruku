@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, X, Tag, Percent, IndianRupee } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { supabase } from '../lib/supabase';
+import { db } from '../firebase/config';
+import { collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 
 interface Coupon {
   id: string;
@@ -47,9 +48,10 @@ export default function AdminCoupons() {
   const fetchCoupons = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.from('coupons').select('*').order('created_at', { ascending: false });
-      if (error) throw error;
-      setCoupons(data || []);
+      const q = query(collection(db, 'coupons'), orderBy('created_at', 'desc'));
+      const snapshot = await getDocs(q);
+      const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Coupon[];
+      setCoupons(data);
     } catch {
       toast.error('Failed to load coupons');
     } finally {
@@ -103,19 +105,29 @@ export default function AdminCoupons() {
       };
 
       if (editing) {
-        const { error } = await supabase.from('coupons').update(payload).eq('id', editing.id);
-        if (error) throw error;
+        await updateDoc(doc(db, 'coupons', editing.id), payload);
         toast.success('Coupon updated');
       } else {
-        const { error } = await supabase.from('coupons').insert({ ...payload, used_count: 0 });
-        if (error) throw error;
+        // Check for duplicate code
+        const snapshot = await getDocs(query(collection(db, 'coupons')));
+        const exists = snapshot.docs.some(d => d.data().code === payload.code);
+        if (exists) {
+          toast.error('Coupon code already exists');
+          setSaving(false);
+          return;
+        }
+        await addDoc(collection(db, 'coupons'), {
+          ...payload,
+          used_count: 0,
+          created_at: new Date(),
+        });
         toast.success('Coupon created');
       }
       setShowForm(false);
       fetchCoupons();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Save failed';
-      toast.error(msg.includes('unique') ? 'Coupon code already exists' : 'Failed to save coupon');
+      toast.error('Failed to save coupon');
     } finally {
       setSaving(false);
     }
@@ -124,8 +136,7 @@ export default function AdminCoupons() {
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this coupon?')) return;
     try {
-      const { error } = await supabase.from('coupons').delete().eq('id', id);
-      if (error) throw error;
+      await deleteDoc(doc(db, 'coupons', id));
       toast.success('Coupon deleted');
       fetchCoupons();
     } catch {
@@ -135,8 +146,7 @@ export default function AdminCoupons() {
 
   const toggleActive = async (coupon: Coupon) => {
     try {
-      const { error } = await supabase.from('coupons').update({ is_active: !coupon.is_active }).eq('id', coupon.id);
-      if (error) throw error;
+      await updateDoc(doc(db, 'coupons', coupon.id), { is_active: !coupon.is_active });
       toast.success(coupon.is_active ? 'Coupon deactivated' : 'Coupon activated');
       fetchCoupons();
     } catch {

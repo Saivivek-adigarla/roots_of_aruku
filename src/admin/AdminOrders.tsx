@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Truck, CheckCircle, XCircle, Filter } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { supabase } from '../lib/supabase';
+import { db } from '../firebase/config';
+import { collection, getDocs, updateDoc, doc, query, orderBy } from 'firebase/firestore';
 
 interface OrderItem {
   id: string;
@@ -61,12 +62,10 @@ export default function AdminOrders() {
   const fetchOrders = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*, order_items(*)')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      setOrders(data || []);
+      const q = query(collection(db, 'orders'), orderBy('created_at', 'desc'));
+      const snapshot = await getDocs(q);
+      const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Order[];
+      setOrders(data);
     } catch {
       toast.error('Failed to load orders');
     } finally {
@@ -82,11 +81,7 @@ export default function AdminOrders() {
       const payload: Record<string, string> = { status: newStatus };
       if (paymentStatus) payload.payment_status = paymentStatus;
 
-      const { error } = await supabase
-        .from('orders')
-        .update(payload)
-        .eq('id', orderId);
-      if (error) throw error;
+      await updateDoc(doc(db, 'orders', orderId), payload);
       toast.success(`Order status updated to ${newStatus}`);
       fetchOrders();
       if (selectedOrder?.id === orderId) {

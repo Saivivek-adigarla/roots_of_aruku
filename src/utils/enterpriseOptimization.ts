@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from 'react';
-import { createClient } from '@supabase/supabase-js';
 
 // 1. REQUEST DEDUPLICATION
 class RequestDeduplicator {
@@ -119,20 +118,7 @@ export class RateLimiter {
 
 const rateLimiter = new RateLimiter(1000, 60000);
 
-// 5. OPTIMIZED SUPABASE CLIENT
-export const createOptimizedSupabaseClient = () => {
-  return createClient(
-    import.meta.env.VITE_SUPABASE_URL,
-    import.meta.env.VITE_SUPABASE_ANON_KEY,
-    {
-      auth: { persistSession: true, autoRefreshToken: true },
-      db: { schema: 'public' },
-      global: { headers: { 'X-Client-Info': 'roots-of-araku/2.0' } },
-    }
-  );
-};
-
-// 6. BATCH QUERY OPTIMIZER
+// 5. BATCH QUERY OPTIMIZER
 export const batchQueries = async <T>(queries: Promise<T>[], batchSize: number = 10): Promise<T[]> => {
   const results: T[] = [];
   for (let i = 0; i < queries.length; i += batchSize) {
@@ -143,35 +129,7 @@ export const batchQueries = async <T>(queries: Promise<T>[], batchSize: number =
   return results;
 };
 
-// 7. QUERY RESULT PAGINATION
-export const paginatedQuery = async (
-  supabase: ReturnType<typeof createClient>,
-  table: string,
-  page: number = 1,
-  pageSize: number = 20
-) => {
-  const safePageSize = Math.min(pageSize, 100);
-  const offset = (page - 1) * safePageSize;
-
-  const { data, error, count } = await supabase
-    .from(table)
-    .select('*', { count: 'exact' })
-    .range(offset, offset + safePageSize - 1);
-
-  if (error) throw error;
-
-  return {
-    data,
-    pagination: {
-      page,
-      pageSize: safePageSize,
-      total: count,
-      pages: Math.ceil((count || 0) / safePageSize),
-    },
-  };
-};
-
-// 9. OPTIMIZED DATA FETCHING HOOK
+// 6. OPTIMIZED DATA FETCHING HOOK
 export const useFetchOptimized = <T>(fetchFn: () => Promise<T>, deps?: unknown[]) => {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -217,36 +175,12 @@ export const useFetchOptimized = <T>(fetchFn: () => Promise<T>, deps?: unknown[]
   return { data, error, loading };
 };
 
-// 10. MEMOIZED SELECTORS
+// 7. MEMOIZED SELECTORS
 export const useOptimizedSelector = <T, R>(data: T, selector: (d: T) => R): R => {
   return useMemo(() => selector(data), [data, selector]);
 };
 
-// 11. BATCH UPDATE OPTIMIZATION
-export const batchUpdate = async (
-  supabase: ReturnType<typeof createClient>,
-  table: string,
-  updates: { id: string; data: Record<string, unknown> }[],
-  batchSize: number = 50
-) => {
-  const results = [];
-
-  for (let i = 0; i < updates.length; i += batchSize) {
-    const batch = updates.slice(i, i + batchSize);
-
-    const batchResults = await Promise.all(
-      batch.map(update =>
-        supabase.from(table).update(update.data).eq('id', update.id)
-      )
-    );
-
-    results.push(...batchResults);
-  }
-
-  return results;
-};
-
-// 12. COMPRESSION MIDDLEWARE
+// 8. COMPRESSION MIDDLEWARE
 export const compressResponse = (data: unknown) => {
   const json = JSON.stringify(data);
   if (json.length > 1024) {
@@ -255,7 +189,7 @@ export const compressResponse = (data: unknown) => {
   return data;
 };
 
-// 13. CIRCUIT BREAKER
+// 9. CIRCUIT BREAKER
 export class CircuitBreaker {
   private failureThreshold: number;
   private successThreshold: number;
@@ -314,7 +248,7 @@ export class CircuitBreaker {
   }
 }
 
-// 14. LONG POLLING
+// 10. LONG POLLING
 export const useLongPoll = <T>(fetchFn: () => Promise<T>, interval: number = 5000) => {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -341,7 +275,7 @@ export const useLongPoll = <T>(fetchFn: () => Promise<T>, interval: number = 500
   return { data, error };
 };
 
-// 15. PERFORMANCE MONITORING
+// 11. PERFORMANCE MONITORING
 export const performanceMonitor = {
   metrics: {} as Record<string, number[]>,
 
@@ -393,12 +327,9 @@ export default {
   retryWithBackoff,
   CacheManager,
   RateLimiter,
-  createOptimizedSupabaseClient,
   batchQueries,
-  paginatedQuery,
   useFetchOptimized,
   useOptimizedSelector,
-  batchUpdate,
   compressResponse,
   CircuitBreaker,
   useLongPoll,

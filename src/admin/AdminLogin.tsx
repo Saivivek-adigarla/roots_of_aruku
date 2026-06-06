@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../firebase/config';
 import { useAuthStore } from '../store/authStore';
-import { authService } from '../services/authService';
 import { Lock, Mail, Loader2, ShieldAlert } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { isValidEmail, sanitizeHtml, checkRateLimit } from '../utils/security';
@@ -38,23 +39,23 @@ export default function AdminLogin() {
         setLoading(false);
         return;
       }
-      const user = await authService.loginWithEmail(sanitizedEmail, password);
-      if (!user.isAdmin) {
-        toast.error('Access denied. Admin only.');
-        setLoading(false);
-        return;
-      }
+      const userCredential = await signInWithEmailAndPassword(auth, sanitizedEmail, password);
       setUser({
-        uid: user.uid,
-        name: sanitizeHtml(user.name),
-        email: user.email,
-        phone: user.phone,
+        uid: userCredential.user.uid,
+        name: sanitizeHtml(userCredential.user.displayName || 'Admin'),
+        email: userCredential.user.email || sanitizedEmail,
+        phone: '',
         isAdmin: true,
       });
       toast.success('Admin login successful');
       navigate('/admin');
-    } catch {
-      toast.error('Invalid credentials or login failed.');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Login failed';
+      if (message.includes('user-not-found') || message.includes('wrong-password') || message.includes('invalid-credential')) {
+        toast.error('Invalid credentials');
+      } else {
+        toast.error('Login failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

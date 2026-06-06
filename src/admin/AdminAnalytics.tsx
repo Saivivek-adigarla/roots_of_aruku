@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, DollarSign, ShoppingBag, Package, ArrowUpRight, ArrowDownRight } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { db } from '../firebase/config';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 
 interface StatCard {
   label: string;
@@ -25,13 +26,13 @@ export default function AdminAnalytics() {
   const fetchAnalytics = async () => {
     setLoading(true);
     try {
-      const [ordersRes, productsRes] = await Promise.all([
-        supabase.from('orders').select('total_amount, delivery_charge, status, created_at, order_number').order('created_at', { ascending: false }),
-        supabase.from('products').select('name, category, stock_quantity, offer_price, mrp'),
+      const [ordersSnapshot, productsSnapshot] = await Promise.all([
+        getDocs(collection(db, 'orders')),
+        getDocs(collection(db, 'products')),
       ]);
 
-      const orders = ordersRes.data || [];
-      const products = productsRes.data || [];
+      const orders = ordersSnapshot.docs.map(d => ({ ...d.data() })) as any[];
+      const products = productsSnapshot.docs.map(d => ({ ...d.data() })) as any[];
 
       const totalRevenue = orders.filter((o) => o.status !== 'cancelled').reduce((s, o) => s + o.total_amount + o.delivery_charge, 0);
       const totalOrders = orders.length;
@@ -45,8 +46,10 @@ export default function AdminAnalytics() {
         { label: 'Avg Order Value', value: totalOrders > 0 ? `₹${Math.round(totalRevenue / totalOrders)}` : '₹0', change: '0%', up: true, icon: TrendingUp, color: 'bg-gold-500' },
       ]);
 
+      // Sort orders by created_at descending and take first 5
+      const sortedOrders = orders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       setRecentOrders(
-        orders.slice(0, 5).map((o) => ({
+        sortedOrders.slice(0, 5).map((o) => ({
           id: o.order_number,
           order_number: o.order_number,
           total: o.total_amount + o.delivery_charge,
@@ -67,15 +70,15 @@ export default function AdminAnalytics() {
       );
 
       // Inventory stats
-      const [activeRes, outOfStockRes, alertsRes] = await Promise.all([
-        supabase.from('products').select('id', { count: 'exact', head: true }).eq('status', 'active'),
-        supabase.from('products').select('id', { count: 'exact', head: true }).eq('status', 'outofstock'),
-        supabase.from('inventory_alerts').select('id', { count: 'exact', head: true }).eq('is_read', false),
-      ]);
+      const activeCount = products.filter((p) => p.status === 'active').length;
+      const outOfStockCount = products.filter((p) => p.status === 'outofstock').length;
+      const alertsSnapshot = await getDocs(query(collection(db, 'inventory_alerts'), where('is_read', '==', false)));
+      const unreadAlertsCount = alertsSnapshot.docs.length;
+
       setInventoryStats({
-        active: activeRes.count || 0,
-        outOfStock: outOfStockRes.count || 0,
-        unreadAlerts: alertsRes.count || 0,
+        active: activeCount,
+        outOfStock: outOfStockCount,
+        unreadAlerts: unreadAlertsCount,
       });
     } catch {
       // Graceful degradation - show empty state

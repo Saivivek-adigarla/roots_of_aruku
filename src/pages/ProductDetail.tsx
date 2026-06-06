@@ -9,7 +9,8 @@ import StarRating from '../components/StarRating';
 import ReviewForm from '../components/ReviewForm';
 import toast from 'react-hot-toast';
 import { Product } from '../types';
-import { supabase } from '../lib/supabase';
+import { db } from '../firebase/config';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { fetchProductById } from '../services/database';
 
 interface Review {
@@ -60,25 +61,43 @@ export default function ProductDetail() {
 
   const fetchReviews = async () => {
     try {
-      const { data } = await supabase
-        .from('reviews')
-        .select('*, users(name)')
-        .eq('product_id', id)
-        .order('created_at', { ascending: false });
-      if (data) {
-        const mapped = data.map((r: { id: string; rating: number; title: string; comment: string; is_verified_purchase: boolean; created_at: string; users?: { name: string } }) => ({
-          id: r.id,
-          rating: r.rating,
-          title: r.title,
-          comment: r.comment,
-          is_verified_purchase: r.is_verified_purchase,
-          created_at: r.created_at,
-          user_name: r.users?.name || 'Customer',
-        }));
-        setReviews(mapped);
-        if (mapped.length > 0) {
-          setAvgRating(mapped.reduce((s: number, r: Review) => s + r.rating, 0) / mapped.length);
+      const reviewsRef = collection(db, 'reviews');
+      const q = query(
+        reviewsRef,
+        where('product_id', '==', id)
+      );
+      const snapshot = await getDocs(q);
+
+      const mapped: Review[] = [];
+      for (const reviewDoc of snapshot.docs) {
+        const review = reviewDoc.data();
+        // Fetch user name from users collection
+        let userName = 'Customer';
+        if (review.user_id) {
+          const userRef = doc(db, 'users', review.user_id);
+          const userSnap = await getDoc(userRef);
+          if (userSnap.exists()) {
+            userName = userSnap.data().name || 'Customer';
+          }
         }
+
+        mapped.push({
+          id: reviewDoc.id,
+          rating: review.rating,
+          title: review.title,
+          comment: review.comment,
+          is_verified_purchase: review.is_verified_purchase,
+          created_at: review.created_at,
+          user_name: userName,
+        });
+      }
+
+      // Sort by created_at descending
+      mapped.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      setReviews(mapped);
+      if (mapped.length > 0) {
+        setAvgRating(mapped.reduce((s: number, r: Review) => s + r.rating, 0) / mapped.length);
       }
     } catch {
       // Fallback to empty reviews

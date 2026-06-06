@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { AlertTriangle, Bell, Check, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { supabase } from '../lib/supabase';
+import { db } from '../firebase/config';
+import { collection, getDocs, updateDoc, deleteDoc, addDoc, doc, query, orderBy } from 'firebase/firestore';
 
 interface InventoryAlert {
   id: string;
@@ -36,16 +37,16 @@ export default function AdminInventory() {
   const fetchInventory = async () => {
     setLoading(true);
     try {
-      const [alertsRes, productsRes] = await Promise.all([
-        supabase.from('inventory_alerts').select('*, products(name)').order('created_at', { ascending: false }),
-        supabase.from('products').select('id, name, stock_quantity, status, emoji').order('stock_quantity', { ascending: true }),
+      const [alertsSnapshot, productsSnapshot] = await Promise.all([
+        getDocs(query(collection(db, 'inventory_alerts'), orderBy('created_at', 'desc'))),
+        getDocs(query(collection(db, 'products'), orderBy('stock_quantity', 'asc'))),
       ]);
 
-      if (alertsRes.error) throw alertsRes.error;
-      if (productsRes.error) throw productsRes.error;
+      const alertsData = alertsSnapshot.docs.map(d => ({ id: d.id, ...d.data() })) as InventoryAlert[];
+      const productsData = productsSnapshot.docs.map(d => ({ id: d.id, ...d.data() })) as ProductStock[];
 
-      setAlerts((alertsRes.data || []).map((a) => ({ ...a, product_name: a.products?.name })));
-      setProducts(productsRes.data || []);
+      setAlerts(alertsData);
+      setProducts(productsData);
     } catch {
       toast.error('Failed to load inventory');
     } finally {
@@ -55,8 +56,7 @@ export default function AdminInventory() {
 
   const markAlertRead = async (id: string) => {
     try {
-      const { error } = await supabase.from('inventory_alerts').update({ is_read: true }).eq('id', id);
-      if (error) throw error;
+      await updateDoc(doc(db, 'inventory_alerts', id), { is_read: true });
       setAlerts((prev) => prev.map((a) => a.id === id ? { ...a, is_read: true } : a));
     } catch {
       toast.error('Failed to update alert');
@@ -65,8 +65,7 @@ export default function AdminInventory() {
 
   const deleteAlert = async (id: string) => {
     try {
-      const { error } = await supabase.from('inventory_alerts').delete().eq('id', id);
-      if (error) throw error;
+      await deleteDoc(doc(db, 'inventory_alerts', id));
       setAlerts((prev) => prev.filter((a) => a.id !== id));
       toast.success('Alert removed');
     } catch {
@@ -78,8 +77,7 @@ export default function AdminInventory() {
     setUpdatingStock(productId);
     try {
       const newStatus = newQty <= 0 ? 'outofstock' : 'active';
-      const { error } = await supabase.from('products').update({ stock_quantity: newQty, status: newStatus }).eq('id', productId);
-      if (error) throw error;
+      await updateDoc(doc(db, 'products', productId), { stock_quantity: newQty, status: newStatus });
       toast.success('Stock updated');
       fetchInventory();
     } catch {
@@ -100,18 +98,21 @@ export default function AdminInventory() {
           alert_type: 'out_of_stock' as const,
           message: `${p.name} is out of stock`,
           is_read: false,
+          created_at: new Date(),
         })),
         ...lowStock.map((p) => ({
           product_id: p.id,
           alert_type: 'low_stock' as const,
           message: `${p.name} has only ${p.stock_quantity} units left`,
           is_read: false,
+          created_at: new Date(),
         })),
       ];
 
       if (newAlerts.length > 0) {
-        const { error } = await supabase.from('inventory_alerts').insert(newAlerts);
-        if (error) throw error;
+        for (const alert of newAlerts) {
+          await addDoc(collection(db, 'inventory_alerts'), alert);
+        }
         toast.success(`${newAlerts.length} alerts generated`);
         fetchInventory();
       } else {

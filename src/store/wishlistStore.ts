@@ -1,14 +1,15 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Product } from '../types';
-import { supabase } from '../lib/supabase';
+import { db } from '../firebase/config';
+import { collection, doc, getDocs, addDoc, deleteDoc, query, where } from 'firebase/firestore';
 
 interface WishlistStore {
   items: Product[];
   loading: boolean;
-  toggle: (product: Product) => void;
+  toggle: (product: Product, userId?: string) => void;
   has: (productId: string) => boolean;
-  remove: (productId: string) => void;
+  remove: (productId: string, userId?: string) => void;
   clearWishlist: () => void;
   syncFromDb: (userId: string) => Promise<void>;
 }
@@ -19,18 +20,27 @@ export const useWishlistStore = create<WishlistStore>()(
       items: [],
       loading: false,
 
-      toggle: (product) => {
+      toggle: (product, userId) => {
         const exists = get().items.find((item) => item.id === product.id);
         if (exists) {
           set((state) => ({ items: state.items.filter((item) => item.id !== product.id) }));
           // Remove from DB if user authenticated
-          supabase.from('wishlist').delete().eq('product_id', product.id).then(() => {});
+          if (userId) {
+            (async () => {
+              try {
+                const q = query(collection(db, 'wishlist'), where('user_id', '==', userId), where('product_id', '==', product.id));
+                const snap = await getDocs(q);
+                for (const d of snap.docs) {
+                  await deleteDoc(doc(db, 'wishlist', d.id));
+                }
+              } catch { /* ignore */ }
+            })();
+          }
         } else {
           set((state) => ({ items: [...state.items, product] }));
           // Add to DB
-          const userId = (window as { __userId?: string }).__userId;
           if (userId) {
-            supabase.from('wishlist').insert({ user_id: userId, product_id: product.id }).then(() => {});
+            addDoc(collection(db, 'wishlist'), { user_id: userId, product_id: product.id }).catch(() => {});
           }
         }
       },
@@ -39,11 +49,21 @@ export const useWishlistStore = create<WishlistStore>()(
         return get().items.some((item) => item.id === productId);
       },
 
-      remove: (productId) => {
+      remove: (productId, userId) => {
         set((state) => ({
           items: state.items.filter((item) => item.id !== productId),
         }));
-        supabase.from('wishlist').delete().eq('product_id', productId).then(() => {});
+        if (userId) {
+          (async () => {
+            try {
+              const q = query(collection(db, 'wishlist'), where('user_id', '==', userId), where('product_id', '==', productId));
+              const snap = await getDocs(q);
+              for (const d of snap.docs) {
+                await deleteDoc(doc(db, 'wishlist', d.id));
+              }
+            } catch { /* ignore */ }
+          })();
+        }
       },
 
       clearWishlist: () => set({ items: [] }),
@@ -51,32 +71,36 @@ export const useWishlistStore = create<WishlistStore>()(
       syncFromDb: async (userId: string) => {
         set({ loading: true });
         try {
-          const { data } = await supabase
-            .from('wishlist')
-            .select('product_id, products(*)')
-            .eq('user_id', userId);
-          if (data && data.length > 0) {
-            const items = data
-              .filter((d: { products: unknown }) => d.products)
-              .map((d: { product_id: string; products: Record<string, unknown> }) => {
-                const p = d.products;
-                return {
-                  id: d.product_id,
-                  name: p.name as string,
-                  description: p.description as string,
-                  category: p.category as Product['category'],
-                  weight: p.weight as string,
-                  mrp: p.mrp as number,
-                  sellingPrice: p.selling_price as number,
-                  offerPrice: p.offer_price as number,
-                  benefits: (p.benefits as string[]) || [],
-                  status: p.status as Product['status'],
-                  showOfferBadge: (p.mrp as number) > (p.offer_price as number),
-                  featured: p.featured as boolean,
-                  images: (p.images as string[]) || [],
-                  emoji: (p.emoji as string) || '',
-                };
-              });
+          const q = query(collection(db, 'wishlist'), where('user_id', '==', userId));
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            const items: Product[] = [];
+            for (const d of snap.docs) {
+              const data = d.data();
+              const productId = data.product_id as string;
+              try {
+                const productSnap = await getDocs(query(collection(db, 'products'), where('__name__', '==', productId)));
+                if (!productSnap.empty) {
+                  const p = productSnap.docs[0].data();
+                  items.push({
+                    id: productId,
+                    name: p.name as string,
+                    description: p.description as string,
+                    category: p.category as Product['category'],
+                    weight: p.weight as string,
+                    mrp: p.mrp as number,
+                    sellingPrice: p.selling_price as number,
+                    offerPrice: p.offer_price as number,
+                    benefits: (p.benefits as string[]) || [],
+                    status: p.status as Product['status'],
+                    showOfferBadge: (p.mrp as number) > (p.offer_price as number),
+                    featured: p.featured as boolean,
+                    images: (p.images as string[]) || [],
+                    emoji: (p.emoji as string) || '',
+                  });
+                }
+              } catch { /* skip product */ }
+            }
             set({ items });
           }
         } catch {

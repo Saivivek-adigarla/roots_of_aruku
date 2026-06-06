@@ -2,8 +2,13 @@ import { useState, useEffect } from 'react';
 import { Link, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Package, ShoppingCart, Users, Settings, LogOut, Menu, X, Leaf, Tag, BarChart3, AlertTriangle } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import { signOut } from 'firebase/auth';
+import { auth } from '../firebase/config';
 import toast from 'react-hot-toast';
-import { supabase } from '../lib/supabase';
+import {
+  collection, getDocs, query, where, orderBy, limit, doc, getDoc,
+} from 'firebase/firestore';
+import { db } from '../firebase/config';
 
 import AdminProducts from './AdminProducts';
 import AdminOrders from './AdminOrders';
@@ -30,26 +35,34 @@ function Dashboard() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const [ordersRes, productsRes, customersRes, alertsRes] = await Promise.all([
-          supabase.from('orders').select('total_amount, delivery_charge, status, created_at, order_number').order('created_at', { ascending: false }).limit(5),
-          supabase.from('products').select('stock_quantity, status'),
-          supabase.from('users').select('id').eq('role', 'customer'),
-          supabase.from('inventory_alerts').select('id').eq('is_read', false),
+        const [ordersSnap, productsSnap, customersSnap, alertsSnap] = await Promise.all([
+          getDocs(query(collection(db, 'orders'), orderBy('created_at', 'desc'), limit(5))),
+          getDocs(collection(db, 'products')),
+          getDocs(query(collection(db, 'users'), where('role', '==', 'customer'))),
+          getDocs(query(collection(db, 'inventory_alerts'), where('is_read', '==', false))),
         ]);
 
-        const orders = ordersRes.data || [];
-        const products = productsRes.data || [];
+        const orders = ordersSnap.docs.map((d) => ({ ...d.data() } as Record<string, unknown>));
+        const products = productsSnap.docs.map((d) => d.data());
+
+        const allOrdersSnap = await getDocs(collection(db, 'orders'));
 
         setStats({
-          totalOrders: orders.length > 0 ? (await supabase.from('orders').select('id', { count: 'exact', head: true })).count || 0 : 0,
-          totalRevenue: orders.filter((o) => o.status !== 'cancelled').reduce((s, o) => s + o.total_amount + o.delivery_charge, 0),
+          totalOrders: allOrdersSnap.size,
+          totalRevenue: orders.filter((o) => o.status !== 'cancelled').reduce((s, o) => s + ((o.total_amount as number) || 0) + ((o.delivery_charge as number) || 0), 0),
           totalProducts: products.length,
-          lowStock: products.filter((p) => p.stock_quantity > 0 && p.stock_quantity <= 10).length,
-          totalCustomers: customersRes.data?.length || 0,
-          unreadAlerts: alertsRes.data?.length || 0,
+          lowStock: products.filter((p) => (p.stock_quantity as number) > 0 && (p.stock_quantity as number) <= 10).length,
+          totalCustomers: customersSnap.size,
+          unreadAlerts: alertsSnap.size,
         });
 
-        setRecentOrders(orders.slice(0, 5));
+        setRecentOrders(orders.slice(0, 5).map((o) => ({
+          order_number: o.order_number as string,
+          total_amount: o.total_amount as number,
+          delivery_charge: (o.delivery_charge as number) || 0,
+          status: o.status as string,
+          created_at: o.created_at as string,
+        })));
       } catch {
         // Graceful degradation
       }
@@ -138,7 +151,7 @@ export default function AdminApp() {
 
   const handleLogout = async () => {
     try {
-      await supabase.auth.signOut();
+      await signOut(auth);
       logout();
       toast.success('Logged out');
       navigate('/admin/login');
