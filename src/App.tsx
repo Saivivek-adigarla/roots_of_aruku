@@ -103,8 +103,12 @@ function App() {
     setSplashComplete(true);
   };
 
+  // Show splash screen before auth is initialized (prevents flash)
+  if (!splashComplete && !initialized) {
+    return <SplashScreen onComplete={handleSplashComplete} />;
+  }
+
   if (!initialized) return <LoadingFallback />;
-  if (!splashComplete) return <SplashScreen onComplete={handleSplashComplete} />;
 
   return (
     <BrowserRouter>
