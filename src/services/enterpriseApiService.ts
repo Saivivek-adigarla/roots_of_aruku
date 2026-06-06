@@ -1,4 +1,4 @@
-import { retryWithBackoff, cache, rateLimiter, CircuitBreaker } from './enterpriseOptimization';
+import { retryWithBackoff, cache, rateLimiter, CircuitBreaker } from '../utils/enterpriseOptimization';
 import { supabase } from '../lib/supabase';
 
 // ============================================
@@ -7,14 +7,13 @@ import { supabase } from '../lib/supabase';
 
 // Circuit breaker for database operations
 const dbCircuitBreaker = new CircuitBreaker(
-  async (fn) => fn(),
   { failureThreshold: 5, timeout: 30000 }
 );
 
 // 1. OPTIMIZED PRODUCT FETCHING
 export const productsService = {
   // Cached product list
-  getProductsByCategory: async (category, page = 1, pageSize = 20, userId = null) => {
+  getProductsByCategory: async (category: string, page: number = 1, pageSize: number = 20, userId: string | null = null) => {
     // Rate limit check
     if (userId) {
       await rateLimiter.checkLimit(`products:${userId}`);
@@ -63,7 +62,7 @@ export const productsService = {
   },
 
   // Search products with full-text search
-  searchProducts: async (query, page = 1, pageSize = 20, userId = null) => {
+  searchProducts: async (query: string, page: number = 1, pageSize: number = 20, userId: string | null = null) => {
     if (userId) {
       await rateLimiter.checkLimit(`search:${userId}`);
     }
@@ -101,7 +100,7 @@ export const productsService = {
   },
 
   // Get single product with reviews
-  getProductDetail: async (productId, userId = null) => {
+  getProductDetail: async (productId: string, userId: string | null = null) => {
     if (userId) {
       await rateLimiter.checkLimit(`product:${userId}`);
     }
@@ -145,7 +144,7 @@ export const productsService = {
 // 2. OPTIMIZED ORDER SERVICE
 export const ordersService = {
   // Create order with transaction handling
-  createOrder: async (userId, orderData) => {
+  createOrder: async (userId: string, orderData: { items: { product_id: string; quantity: number }[]; [key: string]: unknown }) => {
     await rateLimiter.checkLimit(`order:${userId}`);
 
     try {
@@ -154,7 +153,7 @@ export const ordersService = {
           // Validate inventory first
           const items = orderData.items;
           const stockChecks = await Promise.all(
-            items.map((item) =>
+            items.map((item: { product_id: string; quantity: number }) =>
               supabase
                 .from('products')
                 .select('stock_quantity')
@@ -166,7 +165,7 @@ export const ordersService = {
           // Check if all items are in stock
           for (let i = 0; i < stockChecks.length; i++) {
             if (stockChecks[i].error) throw stockChecks[i].error;
-            if (stockChecks[i].data.stock_quantity < items[i].quantity) {
+            if ((stockChecks[i].data as { stock_quantity: number }).stock_quantity < items[i].quantity) {
               throw new Error(`Insufficient stock for item ${i + 1}`);
             }
           }
@@ -186,13 +185,9 @@ export const ordersService = {
           if (error) throw error;
 
           // Invalidate user's order cache
-          cache.cache.forEach((value, key) => {
-            if (key.startsWith(`orders:${userId}`)) {
-              cache.cache.delete(key);
-            }
-          });
+          cache.clear();
 
-          return data[0];
+          return (data as Record<string, unknown>[])[0];
         });
       });
     } catch (error) {
@@ -202,7 +197,7 @@ export const ordersService = {
   },
 
   // Get user orders with pagination
-  getUserOrders: async (userId, page = 1, pageSize = 20) => {
+  getUserOrders: async (userId: string, page: number = 1, pageSize: number = 20) => {
     await rateLimiter.checkLimit(`orders:${userId}`);
 
     const cacheKey = `orders:${userId}:${page}:${pageSize}`;
@@ -242,7 +237,7 @@ export const ordersService = {
   },
 
   // Track order status (shorter cache)
-  getOrderStatus: async (orderId, userId = null) => {
+  getOrderStatus: async (orderId: string, userId: string | null = null) => {
     if (userId) {
       await rateLimiter.checkLimit(`track:${userId}`);
     }
@@ -277,7 +272,7 @@ export const ordersService = {
 // 3. OPTIMIZED CUSTOMER SERVICE
 export const customersService = {
   // Get customer profile
-  getProfile: async (userId) => {
+  getProfile: async (userId: string) => {
     const cacheKey = `profile:${userId}`;
     const cached = cache.get(cacheKey);
     if (cached) return cached;
@@ -305,7 +300,7 @@ export const customersService = {
   },
 
   // Get customer addresses
-  getAddresses: async (userId) => {
+  getAddresses: async (userId: string) => {
     const cacheKey = `addresses:${userId}`;
     const cached = cache.get(cacheKey);
     if (cached) return cached;
@@ -336,15 +331,15 @@ export const customersService = {
 // 4. BATCH OPERATIONS FOR ADMIN
 export const batchService = {
   // Update multiple products
-  updateProducts: async (updates) => {
+  updateProducts: async (updates: { id: string; data: Record<string, unknown> }[]) => {
     const batchSize = 50;
-    const results = [];
+    const results: { id: string; data: Record<string, unknown> }[] = [];
 
     for (let i = 0; i < updates.length; i += batchSize) {
       const batch = updates.slice(i, i + batchSize);
 
       const batchResults = await Promise.all(
-        batch.map((update) =>
+        batch.map((update: { id: string; data: Record<string, unknown> }) =>
           supabase
             .from('products')
             .update(update.data)
@@ -356,17 +351,13 @@ export const batchService = {
     }
 
     // Invalidate product cache
-    cache.cache.forEach((value, key) => {
-      if (key.startsWith('products:') || key.startsWith('product:')) {
-        cache.cache.delete(key);
-      }
-    });
+    cache.clear();
 
     return results;
   },
 
   // Bulk create orders (admin)
-  createBulkOrders: async (orders) => {
+  createBulkOrders: async (orders: Record<string, unknown>[]) => {
     try {
       return await dbCircuitBreaker.execute(async () => {
         return await retryWithBackoff(async () => {
@@ -389,20 +380,24 @@ export const batchService = {
 // 5. ANALYTICS SERVICE
 export const analyticsService = {
   // Track user action (non-blocking)
-  trackAction: async (userId, action, data) => {
+  trackAction: async (userId: string, action: string, data: Record<string, unknown>) => {
     // Fire and forget - don't block user experience
-    setTimeout(() => {
-      supabase
-        .from('analytics')
-        .insert([
-          {
-            user_id: userId,
-            action,
-            data,
-            timestamp: new Date(),
-          },
-        ])
-        .catch((error) => console.error('Analytics tracking failed:', error));
+    setTimeout(async () => {
+      try {
+        const { error } = await supabase
+          .from('analytics')
+          .insert([
+            {
+              user_id: userId,
+              action,
+              data,
+              timestamp: new Date(),
+            },
+          ]);
+        if (error) console.error('Analytics tracking failed:', error);
+      } catch (err) {
+        console.error('Analytics tracking failed:', err);
+      }
     }, 0);
   },
 

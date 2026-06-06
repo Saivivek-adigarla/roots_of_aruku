@@ -7,6 +7,7 @@ export const authService = {
   loginWithEmail: async (email: string, password: string): Promise<User> => {
     const { data, error } = await supabase.auth.signInWithPassword({ email: email.toLowerCase().trim(), password });
     if (error) throw error;
+    if (!data.user) throw new Error('Login failed: no user returned');
 
     const profile = await fetchUserProfile(data.user.id);
     const isAdminEmail = email === import.meta.env.VITE_ADMIN_EMAIL;
@@ -32,6 +33,7 @@ export const authService = {
       },
     });
     if (error) throw error;
+    if (!data.user) throw new Error('Registration failed: no user returned');
 
     await upsertUserProfile(data.user.id, email, displayName, phone || '', 'customer');
 
@@ -60,6 +62,7 @@ export const authService = {
       type: 'sms',
     });
     if (error) throw error;
+    if (!data.user) throw new Error('OTP verification failed: no user returned');
 
     const profile = await fetchUserProfile(data.user.id);
 
@@ -73,7 +76,7 @@ export const authService = {
 
     // Ensure profile exists
     if (!profile) {
-      await upsertUserProfile(data.user.id, user.email, user.name, user.phone, 'customer');
+      await upsertUserProfile(data.user!.id, user.email, user.name, user.phone, 'customer');
     }
 
     return user;

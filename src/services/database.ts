@@ -171,10 +171,11 @@ export async function createOrder(order: {
 
   // Increment coupon usage if applicable
   if (order.couponCode) {
-    await supabase.rpc('increment_coupon_usage', { coupon_code: order.couponCode }).catch(() => {
-      // Fallback: manual increment
-      supabase.from('coupons').update({ used_count: supabase.rpc('increment_coupon_usage', { coupon_code: order.couponCode }) }).eq('code', order.couponCode);
-    });
+    const { error: rpcError } = await supabase.rpc('increment_coupon_usage', { coupon_code: order.couponCode });
+    if (rpcError) {
+      // Fallback: try manual increment (best effort)
+      void supabase.from('coupons').update({ used_count: 1 }).eq('code', order.couponCode);
+    }
   }
 
   return orderData;

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { MapPin, Check, Shield, Tag, X, Smartphone, MessageCircle, Package, Copy, CheckCircle } from 'lucide-react';
+import { MapPin, Check, Shield, Tag, X, Smartphone, MessageCircle, Package, Copy, CheckCircle, QrCode } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { getDeliveryCharge, DELIVERY_FREE_THRESHOLD } from '../utils/helpers';

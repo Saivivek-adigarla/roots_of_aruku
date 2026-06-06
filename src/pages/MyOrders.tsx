@@ -1,7 +1,7 @@
-import { useEffect } from 'react';
-import { ChevronRight, Calendar, MapPin, CreditCard, ShoppingBag } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ChevronRight, Calendar, MapPin, CreditCard, ShoppingBag, RotateCcw, Eye } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useCartStore } from '../store/cartStore';
 import { fetchUserOrders } from '../services/database';
 import { supabase } from '../lib/supabase';

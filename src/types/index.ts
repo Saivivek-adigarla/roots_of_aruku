@@ -47,18 +47,32 @@ export interface CartItem {
 
 // Order Types
 export interface OrderItem {
-  product: { id: string; name: string; weight: string; images?: string[]; offerPrice: number };
-  qty: number;
+  product?: { id: string; name: string; weight: string; images?: string[]; offerPrice: number };
+  product_id?: string;
+  product_name?: string;
+  weight?: string;
+  quantity?: number;
+  qty?: number;
+  unit_price?: number;
+  total_price?: number;
 }
 
 export interface Order {
   orderId: string;
+  order_number?: string;
   items: OrderItem[];
+  order_items?: OrderItem[];
   total: number;
+  total_amount?: number;
+  delivery_charge?: number;
   address: { name: string; address: string; city: string; pincode: string; phone: string };
+  address_snapshot?: { name: string; address: string; city: string; pincode: string; phone: string };
   status: string;
   paymentId?: string;
+  payment_method?: string;
+  payment_status?: string;
   createdAt: string;
+  created_at?: string;
 }
 
 // Payment Types

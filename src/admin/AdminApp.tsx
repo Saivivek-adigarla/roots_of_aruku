@@ -27,7 +27,7 @@ interface DashboardStats {
 
 function Dashboard() {
   const [stats, setStats] = useState<DashboardStats>({ totalOrders: 0, totalRevenue: 0, totalProducts: 0, lowStock: 0, totalCustomers: 0, unreadAlerts: 0 });
-  const [recentOrders, setRecentOrders] = useState<{ order_number: string; total_amount: number; status: string; created_at: string }[]>([]);
+  const [recentOrders, setRecentOrders] = useState<{ order_number: string; total_amount: number; delivery_charge: number; status: string; created_at: string }[]>([]);
 
   useEffect(() => {
     const fetchStats = async () => {
