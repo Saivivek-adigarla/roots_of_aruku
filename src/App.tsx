@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import { useEffect, Suspense, lazy, useState } from 'react';
+import { useEffect, Suspense, lazy, useState, useCallback } from 'react';
 import { useAuthStore } from './store/authStore';
 
 import Navbar from './components/Navbar';
@@ -94,9 +94,14 @@ function App() {
     return sessionStorage.getItem(SPLASH_KEY) === 'true';
   });
 
-  useEffect(() => {
+  // Wrap initialize in useCallback to prevent dependency issues
+  const handleInitialize = useCallback(() => {
     initialize();
   }, [initialize]);
+
+  useEffect(() => {
+    handleInitialize();
+  }, [handleInitialize]);
 
   const handleSplashComplete = () => {
     sessionStorage.setItem(SPLASH_KEY, 'true');
