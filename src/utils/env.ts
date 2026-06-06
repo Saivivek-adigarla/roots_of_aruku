@@ -4,27 +4,15 @@
  */
 
 interface EnvironmentConfig {
-  // Firebase Configuration
-  VITE_FIREBASE_API_KEY: string;
-  VITE_FIREBASE_AUTH_DOMAIN: string;
-  VITE_FIREBASE_PROJECT_ID: string;
-  VITE_FIREBASE_STORAGE_BUCKET: string;
-  VITE_FIREBASE_MESSAGING_SENDER_ID: string;
-  VITE_FIREBASE_APP_ID: string;
-
   // Supabase Configuration
   VITE_SUPABASE_URL: string;
   VITE_SUPABASE_ANON_KEY: string;
-
-  // Payment Gateway
-  VITE_RAZORPAY_KEY_ID: string;
 
   // Admin Configuration
   VITE_ADMIN_EMAIL: string;
 
   // Optional Configuration
   VITE_WHATSAPP_NUMBER?: string;
-  VITE_CLAUDE_API_KEY?: string;
 }
 
 interface ValidationResult {
@@ -35,20 +23,13 @@ interface ValidationResult {
 }
 
 const REQUIRED_VARS: (keyof EnvironmentConfig)[] = [
-  'VITE_FIREBASE_API_KEY',
-  'VITE_FIREBASE_AUTH_DOMAIN',
-  'VITE_FIREBASE_PROJECT_ID',
   'VITE_SUPABASE_URL',
   'VITE_SUPABASE_ANON_KEY',
 ];
 
 const OPTIONAL_VARS: (keyof EnvironmentConfig)[] = [
-  'VITE_RAZORPAY_KEY_ID',
   'VITE_ADMIN_EMAIL',
   'VITE_WHATSAPP_NUMBER',
-  'VITE_FIREBASE_STORAGE_BUCKET',
-  'VITE_FIREBASE_MESSAGING_SENDER_ID',
-  'VITE_FIREBASE_APP_ID',
 ];
 
 /**
@@ -77,15 +58,6 @@ export function validateEnvironment(): ValidationResult {
     }
   }
 
-  // Check for placeholder/demo values
-  if (config.VITE_FIREBASE_API_KEY && config.VITE_FIREBASE_API_KEY.startsWith('demo')) {
-    warnings.push('Firebase is using demo configuration - authentication will not work');
-  }
-
-  if (!config.VITE_RAZORPAY_KEY_ID) {
-    warnings.push('Razorpay key not configured - online payments will not work');
-  }
-
   if (!config.VITE_ADMIN_EMAIL) {
     warnings.push('Admin email not configured - admin panel will not be accessible');
   }
@@ -96,12 +68,6 @@ export function validateEnvironment(): ValidationResult {
       new URL(config.VITE_SUPABASE_URL);
     } catch {
       missing.push('VITE_SUPABASE_URL (invalid URL format)');
-    }
-  }
-
-  if (config.VITE_FIREBASE_AUTH_DOMAIN) {
-    if (!config.VITE_FIREBASE_AUTH_DOMAIN.includes('firebaseapp.com')) {
-      warnings.push('FIREBASE_AUTH_DOMAIN may not be a valid Firebase domain');
     }
   }
 

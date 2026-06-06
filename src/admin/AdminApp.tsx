@@ -2,8 +2,6 @@ import { useState, useEffect } from 'react';
 import { Link, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Package, ShoppingCart, Users, Settings, LogOut, Menu, X, Leaf, Tag, BarChart3, AlertTriangle } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { signOut } from 'firebase/auth';
-import { auth } from '../firebase/config';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 
@@ -140,7 +138,7 @@ export default function AdminApp() {
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
+      await supabase.auth.signOut();
       logout();
       toast.success('Logged out');
       navigate('/admin/login');

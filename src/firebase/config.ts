@@ -1,35 +1,24 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, connectAuthEmulator } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
-import { getStorage, connectStorageEmulator } from 'firebase/storage';
+import { getAnalytics } from 'firebase/analytics';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: 'AIzaSyAbHM9vAP1ZgNX-O7NNCBF9pCibEzDzU9A',
+  authDomain: 'roots-of-araku.firebaseapp.com',
+  projectId: 'roots-of-araku',
+  storageBucket: 'roots-of-araku.firebasestorage.app',
+  messagingSenderId: '688694239799',
+  appId: '1:688694239799:web:9bc837324456ea4ddcd5b2',
+  measurementId: 'G-TSKQ1ZVS7Z',
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize services
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const storage = getStorage(app);
-
-// Use emulator in development if needed
-if (import.meta.env.DEV && !localStorage.getItem('emulator-configured')) {
-  try {
-    connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
-    connectFirestoreEmulator(db, 'localhost', 8080);
-    connectStorageEmulator(storage, 'localhost', 9199);
-    localStorage.setItem('emulator-configured', 'true');
-  } catch {
-    // Emulator already connected
-  }
+let analytics: ReturnType<typeof getAnalytics> | null = null;
+try {
+  analytics = getAnalytics(app);
+} catch {
+  // Analytics unavailable (e.g. SSR or ad blocker)
 }
 
+export { analytics };
 export default app;

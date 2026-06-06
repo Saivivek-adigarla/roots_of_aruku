@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../firebase/config';
 import { useAuthStore } from '../store/authStore';
+import { authService } from '../services/authService';
 import { Lock, Mail, Loader2, ShieldAlert } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { isValidEmail, sanitizeHtml, checkRateLimit } from '../utils/security';
@@ -33,29 +32,29 @@ export default function AdminLogin() {
     setLoading(true);
     try {
       const sanitizedEmail = email.toLowerCase().trim();
-      const userCredential = await signInWithEmailAndPassword(auth, sanitizedEmail, password);
       const isAdminEmail = sanitizedEmail === import.meta.env.VITE_ADMIN_EMAIL;
       if (!isAdminEmail) {
         toast.error('Access denied. Admin only.');
         setLoading(false);
         return;
       }
+      const user = await authService.loginWithEmail(sanitizedEmail, password);
+      if (!user.isAdmin) {
+        toast.error('Access denied. Admin only.');
+        setLoading(false);
+        return;
+      }
       setUser({
-        uid: userCredential.user.uid,
-        name: sanitizeHtml(userCredential.user.displayName || 'Admin'),
-        email: userCredential.user.email || sanitizedEmail,
-        phone: '',
+        uid: user.uid,
+        name: sanitizeHtml(user.name),
+        email: user.email,
+        phone: user.phone,
         isAdmin: true,
       });
       toast.success('Admin login successful');
       navigate('/admin');
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Login failed';
-      if (message.includes('user-not-found') || message.includes('wrong-password')) {
-        toast.error('Invalid credentials');
-      } else {
-        toast.error('Login failed. Please try again.');
-      }
+    } catch {
+      toast.error('Invalid credentials or login failed.');
     } finally {
       setLoading(false);
     }

@@ -104,15 +104,15 @@ export const authService = {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) return null;
 
-    const firebaseUser = session.user;
-    const profile = await fetchUserProfile(firebaseUser.id);
-    const isAdminEmail = firebaseUser.email === import.meta.env.VITE_ADMIN_EMAIL;
+    const sessionUser = session.user;
+    const profile = await fetchUserProfile(sessionUser.id);
+    const isAdminEmail = sessionUser.email === import.meta.env.VITE_ADMIN_EMAIL;
 
     return {
-      uid: firebaseUser.id,
-      name: profile?.name || firebaseUser.user_metadata?.name || firebaseUser.email?.split('@')[0] || 'User',
-      email: firebaseUser.email || '',
-      phone: profile?.phone || firebaseUser.user_metadata?.phone || firebaseUser.phone || '',
+      uid: sessionUser.id,
+      name: profile?.name || sessionUser.user_metadata?.name || sessionUser.email?.split('@')[0] || 'User',
+      email: sessionUser.email || '',
+      phone: profile?.phone || sessionUser.user_metadata?.phone || sessionUser.phone || '',
       isAdmin: profile?.role === 'admin' || isAdminEmail,
     };
   },
