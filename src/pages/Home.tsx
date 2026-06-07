@@ -100,27 +100,6 @@ export default function Home() {
             transition={{ duration: 1 }}
             className="relative z-10 text-center text-white max-w-4xl mx-auto px-4"
           >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="mb-8"
-          >
-            <motion.img
-              src="/image.png"
-              alt="Roots of Araku Logo"
-              className="h-40 w-auto mx-auto drop-shadow-2xl"
-              animate={{
-                y: [0, -8, 0],
-              }}
-              transition={{
-                duration: 3,
-                repeat: Infinity,
-                ease: 'easeInOut',
-              }}
-            />
-          </motion.div>
-
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
