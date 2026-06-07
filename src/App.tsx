@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import { useEffect, Suspense, lazy, useState, useCallback } from 'react';
+import { useEffect, Suspense, lazy, useState } from 'react';
 import { useAuthStore } from './store/authStore';
 
 import Navbar from './components/Navbar';
@@ -94,26 +94,17 @@ function App() {
     return sessionStorage.getItem(SPLASH_KEY) === 'true';
   });
 
-  // Wrap initialize in useCallback to prevent dependency issues
-  const handleInitialize = useCallback(() => {
+  useEffect(() => {
     initialize();
   }, [initialize]);
-
-  useEffect(() => {
-    handleInitialize();
-  }, [handleInitialize]);
 
   const handleSplashComplete = () => {
     sessionStorage.setItem(SPLASH_KEY, 'true');
     setSplashComplete(true);
   };
 
-  // Show splash screen before auth is initialized (prevents flash)
-  if (!splashComplete && !initialized) {
-    return <SplashScreen onComplete={handleSplashComplete} />;
-  }
-
   if (!initialized) return <LoadingFallback />;
+  if (!splashComplete) return <SplashScreen onComplete={handleSplashComplete} />;
 
   return (
     <BrowserRouter>

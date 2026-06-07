@@ -140,7 +140,7 @@ export default function Home() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
                 to="/products"
-                className="inline-flex items-center justify-center gap-2 bg-gold-400 text-maroon-900 px-8 py-4 rounded-full font-bold hover:bg-gold-500 transition-all transform hover:scale-105"
+                className="inline-flex items-center justify-center gap-2 bg-gold-400 text-maroon-900 px-8 py-4 rounded-full font-bold hover:bg-gold-500 transition-all transform hover:scale-105 shadow-lg"
               >
                 <ShoppingCart size={20} /> Explore Collection
               </Link>
@@ -242,8 +242,16 @@ export default function Home() {
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8 }}
             viewport={{ once: true }}
-            className="py-16"
+            className="py-16 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center"
           >
+            <div className="relative">
+              <div className="absolute -inset-4 bg-gradient-to-br from-gold-400/20 to-maroon-700/20 rounded-3xl blur-3xl" />
+              <img
+                src="https://images.pexels.com/photos/1459339/pexels-photo-1459339.jpeg?w=600"
+                alt="Araku Valley"
+                className="relative rounded-3xl shadow-2xl object-cover h-96"
+              />
+            </div>
             <div>
               <span className="inline-flex items-center gap-2 text-gold-400 font-semibold mb-4">
                 <Leaf size={20} /> Our Heritage

@@ -8,7 +8,6 @@ interface AuthStore {
   user: User | null;
   isAuthenticated: boolean;
   initialized: boolean;
-  isInitializing: boolean;
 
   setUser: (user: User | null) => void;
   isAdmin: () => boolean;
@@ -23,7 +22,6 @@ export const useAuthStore = create<AuthStore>()(
       user: null,
       isAuthenticated: false,
       initialized: false,
-      isInitializing: false,
 
       setUser: (user) => {
         set({ user, isAuthenticated: !!user });
@@ -38,11 +36,7 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       logout: async () => {
-        try { 
-          await authService.logout(); 
-        } catch { 
-          /* already signed out */ 
-        }
+        try { await authService.logout(); } catch { /* already signed out */ }
         set({ user: null, isAuthenticated: false });
         secureStorage.remove('session_timestamp');
       },
@@ -53,16 +47,11 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       initialize: async () => {
-        // Prevent duplicate initializations
-        if (get().initialized || get().isInitializing) return;
-        
-        set({ isInitializing: true });
         try {
           const user = await authService.getCurrentUser();
-          set({ user, isAuthenticated: !!user, initialized: true, isInitializing: false });
-        } catch (error) {
-          console.error('Auth initialization error:', error);
-          set({ user: null, isAuthenticated: false, initialized: true, isInitializing: false });
+          set({ user, isAuthenticated: !!user, initialized: true });
+        } catch {
+          set({ user: null, isAuthenticated: false, initialized: true });
         }
       },
     }),

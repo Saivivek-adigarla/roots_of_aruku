@@ -36,79 +36,40 @@ export const authService = {
   // Email + Password Login
   loginWithEmail: async (email: string, password: string): Promise<User> => {
     const credential = await signInWithEmailAndPassword(auth, email.toLowerCase().trim(), password);
-    const user = await mapFirebaseUser(credential.user);
-    return user;
+    return mapFirebaseUser(credential.user);
   },
 
   // Email + Password Signup
   registerWithEmail: async (email: string, password: string, displayName: string, phone?: string): Promise<User> => {
     const credential = await createUserWithEmailAndPassword(auth, email.toLowerCase().trim(), password);
     await upsertUserProfile(credential.user.uid, email, displayName, phone || '', 'customer');
-    const user = await mapFirebaseUser(credential.user);
-    return user;
+    return mapFirebaseUser(credential.user);
   },
 
   // Phone OTP Login
   loginWithPhone: async (phone: string): Promise<void> => {
     const formattedPhone = `+91${phone.replace(/\D/g, '').slice(-10)}`;
     if (!auth) throw new Error('Auth not initialized');
-    
-    const recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', { 
-      size: 'invisible',
-      callback: () => {
-        // reCAPTCHA completed successfully
-      },
-      'expired-callback': () => {
-        confirmationResult = null;
-      },
-      'error-callback': () => {
-        throw new Error('reCAPTCHA verification failed');
-      }
-    });
-    
+    const recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
     confirmationResult = await signInWithPhoneNumber(auth, formattedPhone, recaptchaVerifier);
   },
 
   // Verify Phone OTP
   verifyPhoneOtp: async (phone: string, otp: string): Promise<User> => {
-    if (!confirmationResult) throw new Error('No OTP request pending. Please resend OTP.');
-    
+    if (!confirmationResult) throw new Error('No OTP request pending');
     const credential = await confirmationResult.confirm(otp);
     const user = await mapFirebaseUser(credential.user);
     const profile = await fetchUserProfile(credential.user.uid);
-    
     if (!profile) {
-      await upsertUserProfile(
-        credential.user.uid, 
-        user.email, 
-        user.name, 
-        phone.replace(/\D/g, '').slice(-10), 
-        'customer'
-      );
+      await upsertUserProfile(credential.user.uid, user.email, user.name, phone.replace(/\D/g, '').slice(-10), 'customer');
     }
-    
     confirmationResult = null;
     return user;
   },
 
   // Google Sign-In
-  loginWithGoogle: async (): Promise<User> => {
-    const result = await signInWithPopup(auth, googleProvider);
-    const user = await mapFirebaseUser(result.user);
-    
-    // Create profile if doesn't exist
-    const profile = await fetchUserProfile(result.user.uid);
-    if (!profile) {
-      await upsertUserProfile(
-        result.user.uid,
-        user.email,
-        user.name,
-        '',
-        'customer'
-      );
-    }
-    
-    return user;
+  loginWithGoogle: async (): Promise<void> => {
+    await signInWithPopup(auth, googleProvider);
   },
 
   // Logout
@@ -116,26 +77,13 @@ export const authService = {
     await signOut(auth);
   },
 
-  // Get current authenticated user with timeout
+  // Get current authenticated user
   getCurrentUser: async (): Promise<User | null> => {
     return new Promise((resolve) => {
-      const timeout = setTimeout(() => {
-        unsubscribe();
-        resolve(null);
-      }, 5000); // 5 second timeout
-
       const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
-        clearTimeout(timeout);
         unsubscribe();
-        
         if (fbUser) {
-          try {
-            const user = await mapFirebaseUser(fbUser);
-            resolve(user);
-          } catch (error) {
-            console.error('Error mapping Firebase user:', error);
-            resolve(null);
-          }
+          resolve(await mapFirebaseUser(fbUser));
         } else {
           resolve(null);
         }
@@ -146,19 +94,12 @@ export const authService = {
   // Update profile
   updateProfile: async (userId: string, updates: Partial<User>): Promise<void> => {
     const dbUpdates: { name?: string; phone?: string; email?: string; role?: string } = {};
-    
     if (updates.name) dbUpdates.name = updates.name;
     if (updates.phone) dbUpdates.phone = updates.phone;
     if (updates.email) dbUpdates.email = updates.email;
     if (updates.isAdmin !== undefined) dbUpdates.role = updates.isAdmin ? 'admin' : 'customer';
 
-    await upsertUserProfile(
-      userId, 
-      updates.email || '', 
-      dbUpdates.name || '', 
-      dbUpdates.phone || '', 
-      dbUpdates.role || 'customer'
-    );
+    await upsertUserProfile(userId, updates.email || '', dbUpdates.name || '', dbUpdates.phone || '', dbUpdates.role || 'customer');
   },
 
   // Password reset
@@ -168,61 +109,36 @@ export const authService = {
 
   // Listen to auth state changes
   onAuthStateChange: (callback: (user: User | null) => void) => {
-    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+    onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
-        try {
-          const user = await mapFirebaseUser(fbUser);
-          callback(user);
-        } catch (error) {
-          console.error('Error mapping Firebase user:', error);
-          callback(null);
-        }
+        const user = await mapFirebaseUser(fbUser);
+        callback(user);
       } else {
         callback(null);
       }
     });
-    
-    return unsubscribe;
   },
 };
 
 // Firestore profile helpers
-export async function upsertUserProfile(
-  userId: string, 
-  email: string, 
-  name: string, 
-  phone: string, 
-  role: string = 'customer'
-) {
-  try {
-    const ref = doc(db, 'users', userId);
-    const existing = await getDoc(ref);
-    
-    const data = {
-      id: userId,
-      name,
-      email,
-      phone,
-      role,
-      updated_at: new Date().toISOString(),
-      ...(existing.exists() ? {} : { created_at: new Date().toISOString() }),
-    };
-    
-    await setDoc(ref, data, { merge: true });
-    return data;
-  } catch (error) {
-    console.error('Error upserting user profile:', error);
-    throw error;
-  }
+export async function upsertUserProfile(userId: string, email: string, name: string, phone: string, role: string = 'customer') {
+  const ref = doc(db, 'users', userId);
+  const existing = await getDoc(ref);
+  const data = {
+    id: userId,
+    name,
+    email,
+    phone,
+    role,
+    updated_at: new Date().toISOString(),
+    ...(existing.exists() ? {} : { created_at: new Date().toISOString() }),
+  };
+  await setDoc(ref, data, { merge: true });
+  return data;
 }
 
 export async function fetchUserProfile(userId: string) {
-  try {
-    const ref = doc(db, 'users', userId);
-    const snap = await getDoc(ref);
-    return snap.exists() ? snap.data() as Record<string, unknown> : null;
-  } catch (error) {
-    console.error('Error fetching user profile:', error);
-    return null;
-  }
+  const ref = doc(db, 'users', userId);
+  const snap = await getDoc(ref);
+  return snap.exists() ? snap.data() as Record<string, unknown> : null;
 }
