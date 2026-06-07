@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Loader2, Mail, Lock, Phone, ArrowRight, AlertTriangle, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Mail, Lock, Phone, ArrowRight, AlertTriangle, Eye, EyeOff, Leaf } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
 import { isValidEmail, isValidPhone, checkRateLimit, secureStorage, generateCsrfToken, validateCsrfToken } from '../utils/security';
@@ -149,7 +149,7 @@ export default function Login() {
       {/* Left Panel - Branding (hidden on mobile) */}
       <div className={`hidden lg:flex flex-1 items-center justify-center relative z-10 transition-all duration-700 ${mounted ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-12'}`}>
         <div className="text-center px-12 max-w-lg">
-          <img src="/image copy copy copy copy copy copy copy.png" alt="Roots of Araku" className="h-32 w-auto mx-auto mb-8" />
+          <Leaf size={64} className="text-gold-400 mx-auto mb-6" />
           <h1 className="text-5xl font-bold text-white mb-4 leading-tight">
             Roots of <span className="text-gold-400">Araku</span>
           </h1>
@@ -167,7 +167,7 @@ export default function Login() {
         <div className="w-full max-w-sm">
           {/* Mobile Logo */}
           <div className="lg:hidden text-center mb-8">
-            <img src="/image copy copy copy copy copy copy copy.png" alt="Roots of Araku" className="h-20 w-auto mx-auto mb-4" />
+            <Leaf size={48} className="text-gold-400 mx-auto mb-4" />
             <h1 className="text-3xl font-bold text-white mb-1">
               Roots of <span className="text-gold-400">Araku</span>
             </h1>

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../firebase/config';
 import { useAuthStore } from '../store/authStore';
-import { Lock, Mail, Loader2 } from 'lucide-react';
+import { Lock, Mail, Loader2, Leaf } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { isValidEmail, sanitizeHtml, checkRateLimit } from '../utils/security';
 
@@ -66,7 +66,7 @@ export default function AdminLogin() {
       <div className="w-full max-w-md">
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
           <div className="bg-maroon-700 text-white px-8 py-8 text-center">
-            <img src="/image copy copy copy copy copy copy copy.png" alt="Roots of Araku" className="h-16 w-auto mx-auto mb-4" />
+            <Leaf size={48} className="text-gold-400 mx-auto mb-4" />
             <h1 className="text-2xl font-bold">Admin Panel</h1>
             <p className="text-warm-200 mt-1 text-sm">Secure access for administrators</p>
           </div>
