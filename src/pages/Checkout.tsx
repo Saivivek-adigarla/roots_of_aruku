@@ -34,7 +34,7 @@ export default function Checkout() {
   const [loading, setLoading] = useState(false);
   const [csrfToken, setCsrfToken] = useState('');
   const [couponCode, setCouponCode] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number; type: 'percentage' | 'flat' } | null>(null);
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number; type: 'percentage' | 'flat'; maxDiscount?: number } | null>(null);
   const [couponLoading, setCouponLoading] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
@@ -45,7 +45,7 @@ export default function Checkout() {
   const deliveryCharge = getDeliveryCharge(subtotal);
   const couponDiscount = appliedCoupon
     ? appliedCoupon.type === 'percentage'
-      ? Math.min(Math.round(subtotal * appliedCoupon.discount / 100), appliedCoupon.discount || Infinity)
+      ? Math.min(Math.round(subtotal * appliedCoupon.discount / 100), appliedCoupon.maxDiscount || Infinity)
       : appliedCoupon.discount
     : 0;
   const grandTotal = Math.max(0, subtotal - couponDiscount + deliveryCharge);

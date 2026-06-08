@@ -7,6 +7,7 @@ import { useWishlistStore } from '../store/wishlistStore';
 import { discountPct } from '../utils/helpers';
 import StarRating from '../components/StarRating';
 import ReviewForm from '../components/ReviewForm';
+import WhatsAppButton from '../components/WhatsAppButton';
 import toast from 'react-hot-toast';
 import { Product } from '../types';
 import { db } from '../firebase/config';
@@ -128,8 +129,9 @@ export default function ProductDetail() {
     navigate('/checkout');
   };
 
-  const nextImage = () => setCurrentImage((prev) => (prev + 1) % (product.images.length || 1));
-  const prevImage = () => setCurrentImage((prev) => (prev - 1 + (product.images.length || 1)) % (product.images.length || 1));
+  const images = product?.images || [];
+  const nextImage = () => setCurrentImage((prev) => (prev + 1) % (images.length || 1));
+  const prevImage = () => setCurrentImage((prev) => (prev - 1 + (images.length || 1)) % (images.length || 1));
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -144,8 +146,8 @@ export default function ProductDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
         <div className="space-y-4">
           <div className="relative bg-white rounded-2xl overflow-hidden aspect-square">
-            <img src={product.images?.[currentImage] || 'https://images.pexels.com/photos/894695/pexels-photo-894695.jpeg'} alt={product.name} className="w-full h-full object-contain" />
-            {product.images && product.images.length > 1 && (
+            <img src={images[currentImage] || 'https://images.pexels.com/photos/894695/pexels-photo-894695.jpeg'} alt={`${product.name} - ${product.weight} - Roots of Araku`} className="w-full h-full object-contain" />
+            {images.length > 1 && (
               <>
                 <button onClick={prevImage} className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/80 rounded-full shadow flex items-center justify-center hover:bg-white"><ChevronLeft size={24} /></button>
                 <button onClick={nextImage} className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/80 rounded-full shadow flex items-center justify-center hover:bg-white"><ChevronRight size={24} /></button>
@@ -153,11 +155,11 @@ export default function ProductDetail() {
             )}
             {product.showOfferBadge && <span className="absolute top-4 left-4 bg-green-600 text-white text-sm font-bold px-3 py-1 rounded-full">{discount}% OFF</span>}
           </div>
-          {product.images && product.images.length > 1 && (
+          {images.length > 1 && (
             <div className="flex gap-2 overflow-x-auto pb-2">
-              {product.images.map((img, idx) => (
+              {images.map((img, idx) => (
                 <button key={idx} onClick={() => setCurrentImage(idx)} className={`w-16 h-16 rounded-lg overflow-hidden border-2 flex-shrink-0 ${currentImage === idx ? 'border-maroon-700' : 'border-gray-200'}`}>
-                  <img src={img} alt="" className="w-full h-full object-cover" />
+                  <img src={img} alt={`${product.name} thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
                 </button>
               ))}
             </div>
@@ -210,6 +212,15 @@ export default function ProductDetail() {
             {inStock && (
               <button onClick={handleBuyNow} className="flex-1 bg-gold-400 text-maroon-900 py-3 rounded-xl font-semibold hover:bg-gold-500 transition">Buy Now</button>
             )}
+          </div>
+
+          <div className="flex gap-3 mt-3">
+            <WhatsAppButton
+              variant="product"
+              message={`Hi, I'm interested in ${product?.name || 'this product'} (${product?.weight || ''}) from Roots of Araku. Can you share more details?`}
+              label="Enquire on WhatsApp"
+              className="flex-1"
+            />
           </div>
 
           <div className="grid grid-cols-3 gap-4 py-4 border-y border-gray-100">

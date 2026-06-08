@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /admin/
+Disallow: /checkout
+Disallow: /order-success
+Disallow: /profile
+Disallow: /orders
+Disallow: /addresses
+Disallow: /wishlist
+
+Sitemap: https://rootsofaraku.com/sitemap.xml

@@ -6,6 +6,7 @@ import { useAuthStore } from './store/authStore';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ChatWidget from './components/ChatWidget';
+import WhatsAppButton from './components/WhatsAppButton';
 import BackButton from './components/BackButton';
 import ProtectedRoute from './components/ProtectedRoute';
 import SplashScreen from './components/SplashScreen';
@@ -72,17 +73,9 @@ function MainLayout({ children }: { children: React.ReactNode }) {
       </main>
       <Footer />
       <ChatWidget />
+      <WhatsAppButton />
     </>
   );
-}
-
-function ProtectedPages({ children }: { children: React.ReactNode }) {
-  const user = useAuthStore((s) => s.user);
-  const initialized = useAuthStore((s) => s.initialized);
-
-  if (!initialized) return <LoadingFallback />;
-  if (!user) return <Navigate to="/login" replace />;
-  return <>{children}</>;
 }
 
 const SPLASH_KEY = 'roa_splash_shown';
@@ -90,11 +83,11 @@ const SPLASH_KEY = 'roa_splash_shown';
 function App() {
   const initialize = useAuthStore((s) => s.initialize);
   const initialized = useAuthStore((s) => s.initialized);
+  const loading = useAuthStore((s) => s.loading);
   const [mounted, setMounted] = useState(false);
   const [splashComplete, setSplashComplete] = useState(false);
 
   useEffect(() => {
-    // Check splash status from sessionStorage on mount
     const splashShown = sessionStorage.getItem(SPLASH_KEY) === 'true';
     setSplashComplete(splashShown);
     setMounted(true);
@@ -106,8 +99,10 @@ function App() {
     setSplashComplete(true);
   };
 
-  // Wait for mount to prevent hydration mismatch
-  if (!mounted || !initialized) return <LoadingFallback />;
+  // Show loading while mounting or auth initializing
+  if (!mounted || !initialized || loading) return <LoadingFallback />;
+
+  // Show splash screen only on first visit
   if (!splashComplete) return <SplashScreen onComplete={handleSplashComplete} />;
 
   return (
@@ -125,7 +120,7 @@ function App() {
           <Route path="/signup" element={<Signup />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
 
-          {/* Public Routes */}
+          {/* Public Routes - ALL wrapped in MainLayout for consistent navbar/footer */}
           <Route path="/" element={<MainLayout><Home /></MainLayout>} />
           <Route path="/products" element={<MainLayout><Products /></MainLayout>} />
           <Route path="/product/:id" element={<MainLayout><ProductDetail /></MainLayout>} />
@@ -133,24 +128,24 @@ function App() {
           <Route path="/about" element={<MainLayout><About /></MainLayout>} />
           <Route path="/contact" element={<MainLayout><Contact /></MainLayout>} />
           <Route path="/cart" element={<MainLayout><Cart /></MainLayout>} />
-          <Route path="/story" element={<OurStory />} />
-          <Route path="/faq" element={<FAQ />} />
+          <Route path="/story" element={<MainLayout><OurStory /></MainLayout>} />
+          <Route path="/faq" element={<MainLayout><FAQ /></MainLayout>} />
           <Route path="/blog" element={<MainLayout><Blog /></MainLayout>} />
           <Route path="/blog/:slug" element={<MainLayout><BlogPost /></MainLayout>} />
-          <Route path="/privacy" element={<PrivacyPolicy />} />
-          <Route path="/terms" element={<TermsAndConditions />} />
-          <Route path="/returns" element={<ReturnsPolicy />} />
-          <Route path="/shipping" element={<ShippingPolicy />} />
+          <Route path="/privacy" element={<MainLayout><PrivacyPolicy /></MainLayout>} />
+          <Route path="/terms" element={<MainLayout><TermsAndConditions /></MainLayout>} />
+          <Route path="/returns" element={<MainLayout><ReturnsPolicy /></MainLayout>} />
+          <Route path="/shipping" element={<MainLayout><ShippingPolicy /></MainLayout>} />
           <Route path="/wholesale" element={<MainLayout><Wholesale /></MainLayout>} />
 
-          {/* Protected Routes */}
-          <Route path="/checkout" element={<ProtectedPages><MainLayout><Checkout /></MainLayout></ProtectedPages>} />
-          <Route path="/order-success" element={<ProtectedPages><MainLayout><OrderSuccess /></MainLayout></ProtectedPages>} />
-          <Route path="/order/:id" element={<ProtectedPages><MainLayout><OrderTracking /></MainLayout></ProtectedPages>} />
-          <Route path="/wishlist" element={<ProtectedPages><MainLayout><Wishlist /></MainLayout></ProtectedPages>} />
-          <Route path="/profile" element={<ProtectedPages><MainLayout><Profile /></MainLayout></ProtectedPages>} />
-          <Route path="/orders" element={<ProtectedPages><MainLayout><MyOrders /></MainLayout></ProtectedPages>} />
-          <Route path="/addresses" element={<ProtectedPages><MainLayout><Addresses /></MainLayout></ProtectedPages>} />
+          {/* Protected Routes - use ProtectedRoute for consistent auth handling */}
+          <Route path="/checkout" element={<ProtectedRoute><MainLayout><Checkout /></MainLayout></ProtectedRoute>} />
+          <Route path="/order-success" element={<ProtectedRoute><MainLayout><OrderSuccess /></MainLayout></ProtectedRoute>} />
+          <Route path="/order/:id" element={<ProtectedRoute><MainLayout><OrderTracking /></MainLayout></ProtectedRoute>} />
+          <Route path="/wishlist" element={<ProtectedRoute><MainLayout><Wishlist /></MainLayout></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute><MainLayout><Profile /></MainLayout></ProtectedRoute>} />
+          <Route path="/orders" element={<ProtectedRoute><MainLayout><MyOrders /></MainLayout></ProtectedRoute>} />
+          <Route path="/addresses" element={<ProtectedRoute><MainLayout><Addresses /></MainLayout></ProtectedRoute>} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
