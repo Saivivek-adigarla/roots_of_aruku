@@ -1,176 +1,131 @@
-import { apiClient, endpoints, tokenManager, ApiResponse } from '../config/api.js';
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  sendPasswordResetEmail,
+  onAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithPopup,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  type ConfirmationResult,
+  type User as FirebaseUser,
+} from 'firebase/auth';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '../firebase/config';
 import { User } from '../types';
 
-export interface AuthResponse {
-  user: {
-    id: string;
-    email: string;
-    name: string;
-    phone: string;
-    role: 'customer' | 'admin';
-  };
-  accessToken: string;
-  refreshToken: string;
-}
+const googleProvider = new GoogleAuthProvider();
+let confirmationResult: ConfirmationResult | null = null;
 
-const mapApiUserToAppUser = (apiUser: AuthResponse['user']): User => {
+const mapFirebaseUser = async (fbUser: FirebaseUser): Promise<User> => {
+  const profile = await fetchUserProfile(fbUser.uid);
+  const isAdminEmail = fbUser.email === import.meta.env.VITE_ADMIN_EMAIL;
+
   return {
-    uid: apiUser.id,
-    name: apiUser.name,
-    email: apiUser.email,
-    phone: apiUser.phone,
-    isAdmin: apiUser.role === 'admin',
+    uid: fbUser.uid,
+    name: profile?.name || fbUser.displayName || fbUser.email?.split('@')[0] || 'User',
+    email: fbUser.email || '',
+    phone: profile?.phone || fbUser.phoneNumber?.replace('+91', '') || '',
+    isAdmin: profile?.role === 'admin' || isAdminEmail,
   };
 };
 
 export const authService = {
-  // Register with Email & Password
-  registerWithEmail: async (
-    email: string,
-    password: string,
-    name: string,
-    phone: string
-  ): Promise<User> => {
-    const response = await apiClient<AuthResponse>(endpoints.auth.register, {
-      method: 'POST',
-      body: JSON.stringify({
-        email: email.toLowerCase().trim(),
-        password,
-        name,
-        phone,
-      }),
-    });
-
-    if (response.status === 'error') {
-      throw new Error(response.error || 'Registration failed');
-    }
-
-    const authData = response.data!;
-    tokenManager.setAccessToken(authData.accessToken);
-    tokenManager.setRefreshToken(authData.refreshToken);
-
-    return mapApiUserToAppUser(authData.user);
-  },
-
-  // Login with Email & Password
+  // Email + Password Login
   loginWithEmail: async (email: string, password: string): Promise<User> => {
-    const response = await apiClient<AuthResponse>(endpoints.auth.login, {
-      method: 'POST',
-      body: JSON.stringify({
-        email: email.toLowerCase().trim(),
-        password,
-      }),
-    });
-
-    if (response.status === 'error') {
-      throw new Error(response.error || 'Login failed');
-    }
-
-    const authData = response.data!;
-    tokenManager.setAccessToken(authData.accessToken);
-    tokenManager.setRefreshToken(authData.refreshToken);
-
-    return mapApiUserToAppUser(authData.user);
+    const credential = await signInWithEmailAndPassword(auth, email.toLowerCase().trim(), password);
+    return mapFirebaseUser(credential.user);
   },
 
-  // Get Current User
-  getCurrentUser: async (): Promise<User | null> => {
-    const token = tokenManager.getAccessToken();
-    if (!token) return null;
+  // Email + Password Signup
+  registerWithEmail: async (email: string, password: string, displayName: string, phone?: string): Promise<User> => {
+    const credential = await createUserWithEmailAndPassword(auth, email.toLowerCase().trim(), password);
+    await upsertUserProfile(credential.user.uid, email, displayName, phone || '', 'customer');
+    return mapFirebaseUser(credential.user);
+  },
 
+  // Google Login
+  loginWithGoogle: async (): Promise<User> => {
+    const result = await signInWithPopup(auth, googleProvider);
+    await upsertUserProfile(result.user.uid, result.user.email || '', result.user.displayName || 'User', result.user.phoneNumber?.replace('+91', '') || '', 'customer');
+    return mapFirebaseUser(result.user);
+  },
+
+  // Phone OTP Login - Step 1: Send OTP
+  loginWithPhone: async (phone: string): Promise<void> => {
     try {
-      const response = await apiClient<{ user: AuthResponse['user'] }>(
-        endpoints.auth.me,
-        {
-          method: 'GET',
-        }
-      );
-
-      if (response.status === 'error' || !response.data) {
-        tokenManager.clear();
-        return null;
-      }
-
-      return mapApiUserToAppUser(response.data.user);
-    } catch (error) {
-      tokenManager.clear();
-      return null;
+      const appVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        size: 'invisible',
+        callback: () => {},
+      });
+      confirmationResult = await signInWithPhoneNumber(auth, `+91${phone}`, appVerifier);
+    } catch (error: any) {
+      confirmationResult = null;
+      throw new Error(error.message || 'Failed to send OTP');
     }
+  },
+
+  // Phone OTP Login - Step 2: Verify OTP
+  verifyPhoneOtp: async (phone: string, otp: string): Promise<User> => {
+    if (!confirmationResult) {
+      throw new Error('Please request OTP first');
+    }
+    const result = await confirmationResult.confirm(otp);
+    await upsertUserProfile(result.user.uid, result.user.email || '', result.user.displayName || 'User', phone.replace('+91', ''), 'customer');
+    return mapFirebaseUser(result.user);
+  },
+
+  // Forgot Password
+  resetPassword: async (email: string): Promise<void> => {
+    await sendPasswordResetEmail(auth, email.toLowerCase().trim());
   },
 
   // Logout
   logout: async (): Promise<void> => {
-    try {
-      await apiClient(endpoints.auth.logout, {
-        method: 'POST',
-      });
-    } catch (error) {
-      // Continue logout even if API call fails
-    } finally {
-      tokenManager.clear();
-    }
+    await signOut(auth);
   },
 
-  // Forgot Password
-  forgotPassword: async (email: string): Promise<void> => {
-    const response = await apiClient(endpoints.auth.forgotPassword, {
-      method: 'POST',
-      body: JSON.stringify({ email: email.toLowerCase().trim() }),
-    });
-
-    if (response.status === 'error') {
-      throw new Error(response.error || 'Failed to send reset email');
-    }
+  // Get current Firebase user
+  getCurrentFirebaseUser: (): FirebaseUser | null => {
+    return auth.currentUser;
   },
 
-  // Reset Password
-  resetPassword: async (token: string, newPassword: string): Promise<void> => {
-    const response = await apiClient(endpoints.auth.resetPassword, {
-      method: 'POST',
-      body: JSON.stringify({ token, newPassword }),
-    });
-
-    if (response.status === 'error') {
-      throw new Error(response.error || 'Failed to reset password');
-    }
+  // Auth state listener
+  onAuthStateChanged: (callback: (user: FirebaseUser | null) => void) => {
+    return onAuthStateChanged(auth, callback);
   },
-
-  // Refresh Token (called automatically by apiClient)
-  refreshAccessToken: async (): Promise<boolean> => {
-    const refreshToken = tokenManager.getRefreshToken();
-    if (!refreshToken) return false;
-
-    try {
-      const response = await apiClient<{ accessToken: string; refreshToken: string }>(
-        endpoints.auth.refreshToken,
-        {
-          method: 'POST',
-          body: JSON.stringify({ refreshToken }),
-        }
-      );
-
-      if (response.status === 'error') {
-        tokenManager.clear();
-        return false;
-      }
-
-      tokenManager.setAccessToken(response.data!.accessToken);
-      tokenManager.setRefreshToken(response.data!.refreshToken);
-      return true;
-    } catch (error) {
-      tokenManager.clear();
-      return false;
-    }
-  },
-
-  // Check if user is authenticated
-  isAuthenticated: (): boolean => {
-    return !!tokenManager.getAccessToken();
-  },
-
-  // Get stored tokens
-  getTokens: () => ({
-    accessToken: tokenManager.getAccessToken(),
-    refreshToken: tokenManager.getRefreshToken(),
-  }),
 };
+
+// Firestore profile helpers
+async function fetchUserProfile(uid: string): Promise<any> {
+  try {
+    const ref = doc(db, 'users', uid);
+    const snap = await getDoc(ref);
+    return snap.exists() ? snap.data() : null;
+  } catch {
+    return null;
+  }
+}
+
+async function upsertUserProfile(uid: string, email: string, name: string, phone: string, role: string): Promise<void> {
+  const ref = doc(db, 'users', uid);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      email,
+      name,
+      phone,
+      role,
+      createdAt: serverTimestamp(),
+    });
+  } else {
+    const data = snap.data();
+    if (!data.phone && phone) {
+      await setDoc(ref, { phone, updatedAt: serverTimestamp() }, { merge: true });
+    }
+  }
+}
+
+export { fetchUserProfile, upsertUserProfile };

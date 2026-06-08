@@ -1,271 +1,166 @@
-import { apiClient, endpoints, ApiResponse } from '../config/api.js';
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  addDoc,
+  query,
+  where,
+  orderBy,
+  limit,
+  startAfter,
+  type DocumentSnapshot,
+  type QueryConstraint,
+} from 'firebase/firestore';
+import { db } from '../firebase/config';
 import type { Address, Product } from '../types';
+import { fetchUserProfile, upsertUserProfile } from './authService';
 
-// =====================
-// PRODUCTS
-// =====================
+// Product helpers
+export async function fetchProducts(filters?: { category?: string; featured?: boolean; status?: string }) {
+  const constraints: QueryConstraint[] = [];
+  if (filters?.category) constraints.push(where('category', '==', filters.category));
+  if (filters?.featured) constraints.push(where('featured', '==', true));
+  if (filters?.status) constraints.push(where('status', '==', filters.status));
+  else constraints.push(where('status', '!=', 'discontinued'));
 
-export async function fetchProducts(filters?: {
-  category?: string;
-  featured?: boolean;
-  status?: string;
-  page?: number;
-  limit?: number;
-}): Promise<Product[]> {
-  const params = new URLSearchParams();
-  if (filters?.category) params.append('category', filters.category);
-  if (filters?.featured) params.append('featured', String(filters.featured));
-  if (filters?.status) params.append('status', filters.status);
-  if (filters?.page) params.append('page', String(filters.page));
-  if (filters?.limit) params.append('limit', String(filters.limit));
+  constraints.push(orderBy('created_at', 'desc'));
 
-  const response = await apiClient<{
-    products: Product[];
-    pagination: { page: number; total: number; pages: number };
-  }>(`${endpoints.products.list}?${params.toString()}`);
-
-  if (response.status === 'error') {
-    throw new Error(response.error || 'Failed to fetch products');
-  }
-
-  return response.data?.products || [];
+  const q = query(collection(db, 'products'), ...constraints);
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => mapDbProduct(d));
 }
 
-export async function fetchProductById(id: string): Promise<Product | null> {
-  const response = await apiClient<{ product: Product }>(endpoints.products.detail(id));
-
-  if (response.status === 'error') {
-    return null;
-  }
-
-  return response.data?.product || null;
+export async function fetchProductById(id: string) {
+  const ref = doc(db, 'products', id);
+  const snap = await getDoc(ref);
+  return snap.exists() ? mapDbProduct(snap) : null;
 }
 
-export async function searchProducts(
-  searchQuery: string,
-  category?: string,
-  sortBy?: string,
-  priceRange?: [number, number]
-): Promise<Product[]> {
-  const params = new URLSearchParams();
-  if (searchQuery) params.append('search', searchQuery);
-  if (category) params.append('category', category);
-  if (sortBy) params.append('sortBy', sortBy);
+export async function searchProducts(searchQuery: string, category?: string, sortBy?: string, priceRange?: [number, number]) {
+  const constraints: QueryConstraint[] = [];
+  constraints.push(where('status', '!=', 'discontinued'));
+  if (category) constraints.push(where('category', '==', category));
 
-  const response = await apiClient<{
-    products: Product[];
-  }>(`${endpoints.products.list}?${params.toString()}`);
+  constraints.push(orderBy('created_at', 'desc'));
 
-  if (response.status === 'error') {
-    return [];
-  }
-
-  let results = response.data?.products || [];
+  const q = query(collection(db, 'products'), ...constraints);
+  const snap = await getDocs(q);
+  let results = snap.docs.map((d) => mapDbProduct(d));
 
   if (priceRange) {
-    results = results.filter(
-      (p) => p.offerPrice >= priceRange[0] && p.offerPrice <= priceRange[1]
+    results = results.filter((p) => p.offerPrice >= priceRange[0] && p.offerPrice <= priceRange[1]);
+  }
+
+  if (searchQuery) {
+    const lq = searchQuery.toLowerCase();
+    results = results.filter((p) =>
+      p.name.toLowerCase().includes(lq) || p.description.toLowerCase().includes(lq)
     );
+  }
+
+  switch (sortBy) {
+    case 'price-low': results.sort((a, b) => a.offerPrice - b.offerPrice); break;
+    case 'price-high': results.sort((a, b) => b.offerPrice - a.offerPrice); break;
+    case 'newest': break; // already sorted by created_at desc
+    default: break;
   }
 
   return results;
 }
 
-export async function fetchFeaturedProducts(): Promise<Product[]> {
-  const response = await apiClient<{ products: Product[] }>(endpoints.products.featured);
-
-  if (response.status === 'error') {
-    return [];
-  }
-
-  return response.data?.products || [];
-}
-
-// =====================
-// ADDRESSES
-// =====================
-
-export async function fetchAddresses(userId: string): Promise<Address[]> {
-  const response = await apiClient<{ addresses: Address[] }>(endpoints.users.addresses, {
-    method: 'GET',
-  });
-
-  if (response.status === 'error') {
-    return [];
-  }
-
-  return response.data?.addresses || [];
-}
-
-export async function createAddress(address: Omit<Address, 'id' | 'createdAt'>): Promise<Address> {
-  const response = await apiClient<{ address: Address }>(endpoints.users.addresses, {
-    method: 'POST',
-    body: JSON.stringify(address),
-  });
-
-  if (response.status === 'error') {
-    throw new Error(response.error || 'Failed to create address');
-  }
-
-  return response.data!.address;
-}
-
-export async function updateAddress(
-  id: string,
-  updates: Partial<Address>
-): Promise<Address> {
-  const response = await apiClient<{ address: Address }>(
-    endpoints.users.addressDetail(id),
-    {
-      method: 'PUT',
-      body: JSON.stringify(updates),
-    }
-  );
-
-  if (response.status === 'error') {
-    throw new Error(response.error || 'Failed to update address');
-  }
-
-  return response.data!.address;
-}
-
-export async function deleteAddress(id: string): Promise<void> {
-  const response = await apiClient(endpoints.users.addressDetail(id), {
-    method: 'DELETE',
-  });
-
-  if (response.status === 'error') {
-    throw new Error(response.error || 'Failed to delete address');
-  }
-}
-
-// Alias for backward compatibility
-export const saveAddress = createAddress;
-
-// =====================
-// ORDERS
-// =====================
-
-export interface CreateOrderPayload {
-  items: Array<{
-    productId: string;
-    name: string;
-    weight: string;
-    qty: number;
-    offerPrice: number;
-  }>;
-  total: number;
-  address: {
-    name: string;
-    phone: string;
-    address: string;
-    city: string;
-    state: string;
-    pincode: string;
-  };
-  paymentMethod: 'cod' | 'upi' | 'razorpay';
-}
-
-export async function createOrder(payload: CreateOrderPayload): Promise<{
-  id: string;
-  order_number: string;
-  total_amount: number;
-  status: string;
-}> {
-  const response = await apiClient<{
-    order: { id: string; order_number: string; total_amount: number; status: string };
-  }>(endpoints.orders.create, {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-
-  if (response.status === 'error') {
-    throw new Error(response.error || 'Failed to create order');
-  }
-
-  return response.data!.order;
-}
-
-export async function fetchOrders(page = 1, limit = 10): Promise<{
-  orders: any[];
-  pagination: { page: number; total: number; pages: number };
-}> {
-  const response = await apiClient<{
-    orders: any[];
-    pagination: { page: number; total: number; pages: number };
-  }>(`${endpoints.orders.list}?page=${page}&limit=${limit}`, {
-    method: 'GET',
-  });
-
-  if (response.status === 'error') {
-    return { orders: [], pagination: { page, total: 0, pages: 0 } };
-  }
-
+function mapDbProduct(snap: DocumentSnapshot): Product {
+  const d = snap.data()!;
   return {
-    orders: response.data?.orders || [],
-    pagination: response.data?.pagination || { page, total: 0, pages: 0 },
+    id: snap.id,
+    name: d.name as string,
+    description: d.description as string,
+    category: d.category as Product['category'],
+    weight: d.weight as string,
+    mrp: d.mrp as number,
+    sellingPrice: d.selling_price as number,
+    offerPrice: d.offer_price as number,
+    benefits: (d.benefits as string[]) || [],
+    status: d.status as Product['status'],
+    showOfferBadge: (d.mrp as number) > (d.offer_price as number),
+    featured: d.featured as boolean,
+    images: (d.images as string[]) || [],
+    emoji: (d.emoji as string) || '',
+    stockQuantity: d.stock_quantity as number,
+    createdAt: d.created_at,
   };
 }
 
-export async function fetchOrderById(id: string): Promise<any | null> {
-  const response = await apiClient<{ order: any }>(endpoints.orders.detail(id), {
-    method: 'GET',
-  });
-
-  if (response.status === 'error') {
-    return null;
-  }
-
-  return response.data?.order || null;
+// Address helpers
+export async function fetchAddresses(userId: string) {
+  const q = query(collection(db, 'addresses'), where('user_id', '==', userId), orderBy('created_at', 'desc'));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Address));
 }
 
-// Alias for backward compatibility
-export const fetchUserOrders = fetchOrders;
-
-export async function cancelOrder(id: string): Promise<void> {
-  const response = await apiClient(endpoints.orders.cancel(id), {
-    method: 'POST',
+export async function saveAddress(userId: string, address: Omit<Address, 'id' | 'createdAt'>) {
+  const ref = await addDoc(collection(db, 'addresses'), {
+    user_id: userId,
+    ...address,
+    created_at: new Date(),
   });
-
-  if (response.status === 'error') {
-    throw new Error(response.error || 'Failed to cancel order');
-  }
+  return { id: ref.id, ...address } as Address;
 }
 
-// =====================
-// USER PROFILE
-// =====================
-
-export async function fetchUserProfile(): Promise<{
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  role: string;
-} | null> {
-  const response = await apiClient<{
-    user: { id: string; name: string; email: string; phone: string; role: string };
-  }>(endpoints.users.profile, {
-    method: 'GET',
-  });
-
-  if (response.status === 'error') {
-    return null;
-  }
-
-  return response.data?.user || null;
+export async function updateAddress(id: string, updates: Partial<Address>) {
+  const ref = doc(db, 'addresses', id);
+  await updateDoc(ref, updates as any);
 }
 
-export async function updateUserProfile(updates: {
-  name?: string;
-  phone?: string;
-}): Promise<void> {
-  const response = await apiClient(endpoints.users.profile, {
-    method: 'PUT',
-    body: JSON.stringify(updates),
-  });
+export async function deleteAddress(id: string) {
+  await deleteDoc(doc(db, 'addresses', id));
+}
 
-  if (response.status === 'error') {
-    throw new Error(response.error || 'Failed to update profile');
-  }
+// Order helpers
+export async function fetchUserOrders(userId: string) {
+  const q = query(
+    collection(db, 'orders'),
+    where('user_id', '==', userId),
+    orderBy('created_at', 'desc')
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+export async function createOrder(orderData: any) {
+  const ref = await addDoc(collection(db, 'orders'), {
+    ...orderData,
+    created_at: new Date(),
+  });
+  return { id: ref.id, ...orderData };
+}
+
+export async function fetchOrderById(orderId: string) {
+  const ref = doc(db, 'orders', orderId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return null;
+
+  const orderData = { id: snap.id, ...snap.data() };
+
+  // Fetch order items
+  const itemsSnap = await getDocs(query(collection(db, 'order_items'), where('order_id', '==', orderId)));
+  const items = itemsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+  return { ...orderData, items };
+}
+
+export async function updateOrderStatus(orderId: string, status: string) {
+  const ref = doc(db, 'orders', orderId);
+  await updateDoc(ref, { status, updated_at: new Date() });
+}
+
+// User profile
+export { fetchUserProfile, upsertUserProfile };
+
+export async function updateUserProfile(uid: string, updates: { name?: string; phone?: string }) {
+  const ref = doc(db, 'users', uid);
+  await updateDoc(ref, { ...updates, updatedAt: new Date() });
 }
