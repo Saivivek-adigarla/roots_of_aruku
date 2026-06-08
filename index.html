@@ -1,81 +1,61 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#6B1A1A" />
-    <title>Roots of Araku E-commerce Platform</title>
+<!-- Security Meta Tags -->
 
-    <!-- SEO Meta Tags -->
-    <meta name="description" content="Premium organic ecommerce platform specializing in tribal coffee, wild turmeric, and golden honey from Araku Valley, Andhra Pradesh, India." />
-    <meta name="keywords" content="organic coffee, wild turmeric, tribal honey, Araku Valley, Andhra Pradesh, organic products, tribal products" />
-    <meta name="author" content="Roots of Araku" />
-    <meta name="robots" content="index, follow" />
+<!-- Enable XSS protection -->
+<meta http-equiv="X-XSS-Protection" content="1; mode=block" />
 
-    <!-- Open Graph Meta Tags -->
-    <meta property="og:title" content="Roots of Araku - Premium Organic Products" />
-    <meta property="og:description" content="Tribal coffee, wild turmeric, and golden honey from Araku Valley" />
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://rootsofaraku.com" />
-    <meta property="og:image" content="/image.png" />
-    <meta property="og:site_name" content="Roots of Araku" />
-    <meta property="og:locale" content="en_IN" />
+<!-- Prevent MIME type sniffing -->
+<meta http-equiv="X-Content-Type-Options" content="nosniff" />
 
-    <!-- Twitter Meta Tags -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Roots of Araku - Premium Organic Products" />
-    <meta name="twitter:description" content="Tribal coffee, wild turmeric, and golden honey from Araku Valley" />
-    <meta name="twitter:image" content="/image.png" />
+<!-- Referrer policy -->
+<meta name="referrer" content="strict-origin-when-cross-origin" />
 
-    <!-- Security Meta Tags -->
-    <!-- Prevent clickjacking -->
-    <meta http-equiv="X-Frame-Options" content="DENY" />
+<!-- Content Security Policy -->
+<meta http-equiv="Content-Security-Policy" content="
+default-src 'self';
 
-    <!-- Enable XSS protection -->
-    <meta http-equiv="X-XSS-Protection" content="1; mode=block" />
+script-src 'self' 'unsafe-inline' 'unsafe-eval'
+https://checkout.razorpay.com
+https://cdn.jsdelivr.net
+https://www.googletagmanager.com
+https://www.google-analytics.com;
 
-    <!-- Prevent MIME type sniffing -->
-    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+style-src 'self' 'unsafe-inline'
+https://fonts.googleapis.com;
 
-    <!-- Referrer policy -->
-    <meta name="referrer" content="strict-origin-when-cross-origin" />
+img-src 'self' data: blob: https:;
 
-    <!-- Permissions Policy (Feature Policy) -->
-    <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(self), payment=(self), usb=(), magnetometer=(), gyroscope=(), accelerometer=()" />
+font-src 'self'
+https://fonts.gstatic.com;
 
-    <!-- Content Security Policy - Note: For production, this should be served as HTTP header -->
-    <!-- This meta tag version has limited support but provides additional protection -->
-    <meta http-equiv="Content-Security-Policy" content="
-      default-src 'self';
-      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://cdn.jsdelivr.net;
-      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-      img-src 'self' data: https: blob:;
-      font-src 'self' https://fonts.gstatic.com;
-      connect-src 'self' https://*.supabase.co https://*.firebaseio.com https://firestore.googleapis.com https://firebase.googleapis.com https://checkout.razorpay.com;
-      frame-src 'self' https://checkout.razorpay.com https://razorpay.com;
-      object-src 'none';
-      base-uri 'self';
-      form-action 'self';
-      frame-ancestors 'none';
-      upgrade-insecure-requests;
-    " />
+connect-src 'self'
+https://*.supabase.co
+https://*.firebaseio.com
+https://firestore.googleapis.com
+https://firebase.googleapis.com
+https://firebaseinstallations.googleapis.com
+https://identitytoolkit.googleapis.com
+https://securetoken.googleapis.com
+https://www.googleapis.com
+https://www.google-analytics.com
+https://region1.google-analytics.com
+https://checkout.razorpay.com;
 
-    <!-- Preconnect to external domains for performance -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="preconnect" href="https://checkout.razorpay.com" />
-  </head>
-  <body>
-    <!-- Noscript fallback for users without JavaScript -->
-    <noscript>
-      <div style="padding: 20px; text-align: center; font-family: system-ui, sans-serif;">
-        <h1>JavaScript Required</h1>
-        <p>Roots of Araku requires JavaScript to function properly. Please enable JavaScript in your browser settings.</p>
-      </div>
-    </noscript>
+frame-src 'self'
+https://checkout.razorpay.com
+https://razorpay.com
+https://accounts.google.com;
 
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
+object-src 'none';
+base-uri 'self';
+form-action 'self';
+upgrade-insecure-requests;
+" />
+
+<!-- Preconnect to external domains -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="preconnect" href="https://checkout.razorpay.com" />
+<link rel="preconnect" href="https://firebase.googleapis.com" />
+<link rel="preconnect" href="https://firestore.googleapis.com" />
+<link rel="preconnect" href="https://identitytoolkit.googleapis.com" />
+<link rel="preconnect" href="https://securetoken.googleapis.com" />
