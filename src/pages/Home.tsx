@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Star, ShoppingCart, Award, Truck } from 'lucide-react';
+import { ArrowRight, Star, ShoppingCart, Award, Truck, Leaf } from 'lucide-react';
 import { motion } from 'framer-motion';
 import ProductCard from '../components/ProductCard';
 import Logo from '../components/Logo';
 import SEO from '../components/SEO';
-import { SEED_PRODUCTS } from '../data/products';
+import { SEED_PRODUCTS, CATEGORY_IMAGES, HERO_IMAGES, IMAGE_ALT_TEXT } from '../data/products';
 import { fetchProducts } from '../services/database';
 import type { Product } from '../types';
 
@@ -33,12 +33,9 @@ const testimonials = [
 ];
 
 const categories = [
-  { name: 'Coffee', icon: '☕', link: '/products?category=coffee' },
-  { name: 'Honey', icon: '🍯', link: '/products?category=honey' },
-  { name: 'Millets', icon: '🌾', link: '/products?category=millets' },
-  { name: 'Spices', icon: '🌶️', link: '/products?category=spices' },
-  { name: 'Dry Fruits', icon: '🥜', link: '/products?category=dry-fruits' },
-  { name: 'Tribal', icon: '🪶', link: '/products?category=tribal' },
+  { name: 'Coffee', icon: '☕', link: '/products?category=coffee', image: CATEGORY_IMAGES.coffee, alt: 'Premium organic coffee from Araku Valley' },
+  { name: 'Turmeric', icon: '🌿', link: '/products?category=turmeric', image: CATEGORY_IMAGES.turmeric, alt: 'Wild turmeric powder from Eastern Ghats' },
+  { name: 'Honey', icon: '🍯', link: '/products?category=honey', image: CATEGORY_IMAGES.honey, alt: 'Wild golden honey from Araku Valley forests' },
 ];
 
 export default function Home() {
@@ -83,17 +80,14 @@ export default function Home() {
       <div className="pb-12">
         {/* Premium Hero Section */}
         <div className="relative h-screen bg-black overflow-hidden flex items-center justify-center">
-          <video
-            autoPlay
-            muted
-            loop
-            playsInline
+          <img
+            src={HERO_IMAGES.coffee}
+            alt="Premium organic coffee from Araku Valley - Roots of Araku heritage collection"
             className="absolute inset-0 w-full h-full object-cover opacity-40"
-          >
-            <source src="https://media.pexels.com/videos/2156104/free-video-2156104.mp4" type="video/mp4" />
-          </video>
+            loading="eager"
+          />
 
-          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-black/60" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-maroon-900/30 to-black/60" />
 
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -178,16 +172,28 @@ export default function Home() {
             className="py-16"
           >
             <h2 className="text-4xl font-bold text-center text-gray-800 mb-12">Explore by Category</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {categories.map((cat, i) => (
                 <motion.a
                   key={i}
                   href={cat.link}
                   variants={itemVariants}
-                  className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-warm-100 to-warm-50 p-6 text-center hover:shadow-lg transition-all hover:-translate-y-1"
+                  className="group relative overflow-hidden rounded-2xl h-64 hover:shadow-2xl transition-all duration-500 hover:-translate-y-2"
                 >
-                  <div className="text-4xl mb-2">{cat.icon}</div>
-                  <p className="font-semibold text-gray-800 group-hover:text-gold-400 transition-colors">{cat.name}</p>
+                  <img
+                    src={cat.image}
+                    alt={cat.alt}
+                    loading="lazy"
+                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                  <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
+                    <span className="text-3xl mb-1 block">{cat.icon}</span>
+                    <p className="font-bold text-xl group-hover:text-gold-400 transition-colors">{cat.name}</p>
+                    <p className="text-sm text-white/70 mt-1 flex items-center gap-1">
+                      Shop Now <ArrowRight size={12} />
+                    </p>
+                  </div>
                 </motion.a>
               ))}
             </div>
@@ -227,9 +233,10 @@ export default function Home() {
             <div className="relative">
               <div className="absolute -inset-4 bg-gradient-to-br from-gold-400/20 to-maroon-700/20 rounded-3xl blur-3xl" />
               <img
-                src="https://images.pexels.com/photos/1459339/pexels-photo-1459339.jpeg?w=600"
-                alt="Araku Valley"
-                className="relative rounded-3xl shadow-2xl object-cover h-96"
+                src={HERO_IMAGES.turmeric}
+                alt="Organic turmeric from tribal farms of Eastern Ghats - Roots of Araku heritage"
+                className="relative rounded-3xl shadow-2xl object-cover h-96 w-full"
+                loading="lazy"
               />
             </div>
             <div>
