@@ -90,11 +90,14 @@ const SPLASH_KEY = 'roa_splash_shown';
 function App() {
   const initialize = useAuthStore((s) => s.initialize);
   const initialized = useAuthStore((s) => s.initialized);
-  const [splashComplete, setSplashComplete] = useState(() => {
-    return sessionStorage.getItem(SPLASH_KEY) === 'true';
-  });
+  const [mounted, setMounted] = useState(false);
+  const [splashComplete, setSplashComplete] = useState(false);
 
   useEffect(() => {
+    // Check splash status from sessionStorage on mount
+    const splashShown = sessionStorage.getItem(SPLASH_KEY) === 'true';
+    setSplashComplete(splashShown);
+    setMounted(true);
     initialize();
   }, [initialize]);
 
@@ -103,7 +106,8 @@ function App() {
     setSplashComplete(true);
   };
 
-  if (!initialized) return <LoadingFallback />;
+  // Wait for mount to prevent hydration mismatch
+  if (!mounted || !initialized) return <LoadingFallback />;
   if (!splashComplete) return <SplashScreen onComplete={handleSplashComplete} />;
 
   return (
