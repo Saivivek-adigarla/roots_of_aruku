@@ -169,7 +169,7 @@ export default function AdminApp() {
     <div className="min-h-screen bg-warm-50">
       <aside className={`fixed inset-y-0 left-0 w-64 bg-maroon-900 text-white transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 transition-transform z-40`}>
         <div className="p-4 border-b border-maroon-800 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 font-bold"><Leaf size={20} className="text-gold-400" /><span>Roots Admin</span></Link>
+          <Link to="/" className="flex items-center gap-2 font-bold"><div className="w-6 h-6 bg-gold-400 rounded-full flex items-center justify-center text-maroon-900 text-xs font-bold">A</div><span>Roots Admin</span></Link>
           <button onClick={() => setSidebarOpen(false)} className="lg:hidden"><X size={24} /></button>
         </div>
         <nav className="p-4 space-y-1">

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Star, ShoppingCart, Leaf, Award, Truck } from 'lucide-react';
+import { ArrowRight, Star, ShoppingCart, Award, Truck } from 'lucide-react';
 import { motion } from 'framer-motion';
 import ProductCard from '../components/ProductCard';
+import Logo from '../components/Logo';
 import SEO from '../components/SEO';
 import { SEED_PRODUCTS } from '../data/products';
 import { fetchProducts } from '../services/database';
@@ -104,9 +105,9 @@ export default function Home() {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.8, delay: 0.2 }}
-              className="mb-4 inline-flex items-center gap-2 bg-gold-400/20 text-gold-300 px-6 py-2 rounded-full border border-gold-400/30"
+              className="mb-8"
             >
-              <Leaf size={16} /> From Araku Valley, With Love
+              <Logo size="xl" animated={true} showText={false} />
             </motion.div>
 
             <h1 className="text-6xl md:text-7xl font-bold mb-6 leading-tight">

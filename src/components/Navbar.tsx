@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingCart, User as UserIcon, Search, Menu, X, Heart, Package, LogOut, Settings, Leaf } from 'lucide-react';
+import { ShoppingCart, User as UserIcon, Search, Menu, X, Heart, Package, LogOut, Settings } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { useWishlistStore } from '../store/wishlistStore';
+import Logo from './Logo';
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -41,8 +42,7 @@ export default function Navbar() {
               {menuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
             <Link to="/" className="flex items-center gap-2">
-              <Leaf size={28} className="text-gold-400" />
-              <span className="hidden sm:inline text-sm font-bold text-gold-300">Roots of Araku</span>
+              <Logo size="sm" animated={false} showText={false} />
             </Link>
           </div>
 

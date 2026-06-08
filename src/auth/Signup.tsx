@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Loader2, Mail, Lock, User, ArrowRight, AlertTriangle, Check, Eye, EyeOff, Leaf } from 'lucide-react';
+import { Loader2, Mail, Lock, User, ArrowRight, AlertTriangle, Check, Eye, EyeOff } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
 import { isValidEmail, isValidName, isValidPhone, validatePassword, sanitizeHtml, checkRateLimit, secureStorage, generateCsrfToken, validateCsrfToken } from '../utils/security';
 import { authService } from '../services/authService';
+import Logo from '../components/Logo';
 
 export default function Signup() {
   const [name, setName] = useState('');
@@ -79,9 +80,8 @@ export default function Signup() {
 
       <div className={`hidden lg:flex flex-1 items-center justify-center relative z-10 transition-all duration-700 ${mounted ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-12'}`}>
         <div className="text-center px-12 max-w-lg">
-          <Leaf size={64} className="text-gold-400 mx-auto mb-6" />
-          <h1 className="text-5xl font-bold text-white mb-4 leading-tight">Roots of <span className="text-gold-400">Araku</span></h1>
-          <p className="text-xl text-warm-200/90 mb-8">Real Taste from the Hills</p>
+          <Logo size="lg" animated={true} showText={true} />
+          <p className="text-xl text-warm-200/90 mb-8 mt-6">Real Taste from the Hills</p>
           <p className="text-warm-200/60 text-sm leading-relaxed">Join our community and discover premium organic coffee, wild turmeric, and golden honey from Araku Valley.</p>
         </div>
       </div>
@@ -89,9 +89,8 @@ export default function Signup() {
       <div className={`flex-1 lg:max-w-md flex items-center justify-center relative z-10 p-4 sm:p-8 transition-all duration-700 delay-200 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         <div className="w-full max-w-sm">
           <div className="lg:hidden text-center mb-8">
-            <Leaf size={48} className="text-gold-400 mx-auto mb-4" />
-            <h1 className="text-3xl font-bold text-white mb-1">Roots of <span className="text-gold-400">Araku</span></h1>
-            <p className="text-warm-200/70 text-sm">Real Taste from the Hills</p>
+            <Logo size="md" animated={false} showText={true} />
+            <p className="text-warm-200/70 text-sm mt-4">Real Taste from the Hills</p>
           </div>
 
           <div className="bg-white/10 backdrop-blur-xl rounded-3xl border border-white/20 shadow-2xl overflow-hidden">

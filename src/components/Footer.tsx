@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
-import { Phone, MapPin, Leaf } from 'lucide-react';
+import { Phone, MapPin } from 'lucide-react';
+import Logo from './Logo';
 
 export default function Footer() {
   return (
@@ -8,9 +9,8 @@ export default function Footer() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-8 mb-8">
           {/* Brand */}
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <Leaf size={32} className="text-gold-400" />
-              <span className="text-lg font-bold text-gold-300">Roots of Araku</span>
+            <div className="mb-4">
+              <Logo size="md" animated={false} showText={true} />
             </div>
             <p className="text-sm">Premium organic products from Araku Valley tribal farms. 100% authentic, chemical-free.</p>
           </div>
