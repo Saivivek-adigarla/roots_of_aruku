@@ -82,8 +82,8 @@ const SPLASH_KEY = 'roa_splash_shown';
 
 function App() {
   const initialize = useAuthStore((s) => s.initialize);
+  const hydrationComplete = useAuthStore((s) => s.hydrationComplete);
   const initialized = useAuthStore((s) => s.initialized);
-  const loading = useAuthStore((s) => s.loading);
   const [mounted, setMounted] = useState(false);
   const [splashComplete, setSplashComplete] = useState(false);
 
@@ -99,10 +99,10 @@ function App() {
     setSplashComplete(true);
   };
 
-  // Show loading while mounting or auth initializing
-  if (!mounted || !initialized || loading) return <LoadingFallback />;
+  // Show loading while mounting or hydrating from localStorage
+  if (!mounted || !hydrationComplete) return <LoadingFallback />;
 
-  // Show splash screen only on first visit
+  // Show splash screen only on first visit (after hydration)
   if (!splashComplete) return <SplashScreen onComplete={handleSplashComplete} />;
 
   return (

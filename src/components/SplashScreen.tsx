@@ -9,10 +9,11 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
+    // Increased duration to ensure proper initialization
     const timer = setTimeout(() => {
       setIsVisible(false);
       onComplete();
-    }, 1000);
+    }, 2000);
 
     return () => clearTimeout(timer);
   }, [onComplete]);
@@ -27,4 +28,3 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
     </div>
   );
 }
-

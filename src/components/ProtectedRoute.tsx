@@ -11,11 +11,16 @@ export default function ProtectedRoute({ children, adminOnly = false }: Props) {
   const user = useAuthStore((s) => s.user);
   const initialized = useAuthStore((s) => s.initialized);
   const isAdminFn = useAuthStore((s) => s.isAdmin);
-  const loading = useAuthStore((s) => s.loading);
+  const hydrationComplete = useAuthStore((s) => s.hydrationComplete);
   const location = useLocation();
 
-  // Wait for auth initialization to prevent flashing
-  if (!initialized || loading) {
+  // Wait for auth hydration from localStorage
+  if (!hydrationComplete) {
+    return null; // Don't render anything while hydrating
+  }
+
+  // If still initializing with Firebase, show loading
+  if (!initialized) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-warm-50">
         <div className="text-center">

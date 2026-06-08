@@ -11,12 +11,14 @@ interface AuthStore {
   isAuthenticated: boolean;
   initialized: boolean;
   loading: boolean;
+  hydrationComplete: boolean;
 
   setUser: (user: User | null) => void;
   isAdmin: () => boolean;
   logout: () => Promise<void>;
   clearSession: () => void;
   initialize: () => void;
+  setHydrationComplete: (complete: boolean) => void;
 }
 
 const SESSION_TIMEOUT = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -41,6 +43,7 @@ export const useAuthStore = create<AuthStore>()(
       isAuthenticated: false,
       initialized: false,
       loading: false,
+      hydrationComplete: false,
 
       setUser: (user) => {
         set({ user, isAuthenticated: !!user, loading: false });
@@ -63,6 +66,10 @@ export const useAuthStore = create<AuthStore>()(
       clearSession: () => {
         set({ user: null, isAuthenticated: false, loading: false });
         secureStorage.clear();
+      },
+
+      setHydrationComplete: (complete) => {
+        set({ hydrationComplete: complete });
       },
 
       initialize: () => {
@@ -102,6 +109,12 @@ export const useAuthStore = create<AuthStore>()(
         user: state.user,
         isAuthenticated: state.isAuthenticated,
       }),
+      onRehydrateStorage: () => (state) => {
+        // Mark hydration as complete after persist loads
+        if (state) {
+          state.hydrationComplete = true;
+        }
+      },
     }
   )
 );
