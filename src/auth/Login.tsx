@@ -101,7 +101,7 @@ export default function Login() {
       return;
     }
 
-    const storedToken = secureStorage.get("csrf_token");
+    const storedToken = secureStorage.get<string>("csrf_token");
     if (!validateCsrfToken(csrfToken, storedToken || "")) {
       toast.error("Security validation failed");
       return;

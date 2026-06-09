@@ -43,7 +43,7 @@ export default function MyOrders() {
     if (!user) return;
     try {
       const dbOrders = await fetchUserOrders(user.uid);
-      setOrders(dbOrders);
+      setOrders(dbOrders as DbOrder[]);
     } catch {
       const lastOrder = secureStorage.get<DbOrder>('lastOrder');
       const allOrders = secureStorage.get<DbOrder[]>('demoOrders') || [];
@@ -69,6 +69,7 @@ export default function MyOrders() {
       setReorderingId(order.order_number);
       let hasProduct = false;
       for (const item of order.order_items) {
+        if (!item.product_id) continue;
         const productRef = doc(db, 'products', item.product_id);
         const productSnap = await getDoc(productRef);
 
