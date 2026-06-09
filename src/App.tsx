@@ -85,25 +85,32 @@ function App() {
   const initialized = useAuthStore((s) => s.initialized);
   const loading = useAuthStore((s) => s.loading);
   const [mounted, setMounted] = useState(false);
-  const [splashComplete, setSplashComplete] = useState(false);
+  const [showSplash, setShowSplash] = useState(() => {
+    // Check synchronously on first render to avoid flash
+    if (typeof sessionStorage !== 'undefined') {
+      return sessionStorage.getItem(SPLASH_KEY) !== 'true';
+    }
+    return true;
+  });
 
   useEffect(() => {
-    const splashShown = sessionStorage.getItem(SPLASH_KEY) === 'true';
-    setSplashComplete(splashShown);
     setMounted(true);
     initialize();
   }, [initialize]);
 
   const handleSplashComplete = () => {
     sessionStorage.setItem(SPLASH_KEY, 'true');
-    setSplashComplete(true);
+    setShowSplash(false);
   };
 
-  // Show loading while mounting or auth initializing
-  if (!mounted || !initialized || loading) return <LoadingFallback />;
+  // Show splash screen with minimum duration, then wait for auth if needed
+  // The splash screen itself handles the minimum duration and fade-out
+  if (showSplash) {
+    return <SplashScreen onComplete={handleSplashComplete} />;
+  }
 
-  // Show splash screen only on first visit
-  if (!splashComplete) return <SplashScreen onComplete={handleSplashComplete} />;
+  // After splash, wait for auth to initialize
+  if (!mounted || !initialized || loading) return <LoadingFallback />;
 
   return (
     <BrowserRouter>
