@@ -35,7 +35,7 @@ export default function OrderSuccess() {
 
   const handleWhatsApp = () => {
     if (!order) return;
-    const items = order.items.map(item => ({ name: item.product?.name ?? '', weight: item.product?.weight ?? '', qty: item.qty ?? 1, price: item.product?.offerPrice ?? 0 }));
+    const items = order.items.map(item => ({ name: item.product.name, weight: item.product.weight, qty: item.qty, price: item.product.offerPrice }));
     const message = buildOrderMessage(
       order.orderId,
       items,
@@ -179,12 +179,12 @@ export default function OrderSuccess() {
               <div className="space-y-2">
                 {order.items.map((item, idx) => (
                   <div key={idx} className="flex items-center gap-3">
-                    <img src={item.product?.images?.[0]} alt={item.product?.name} className="w-12 h-12 object-cover rounded" />
+                    <img src={item.product.images?.[0]} alt={item.product.name} className="w-12 h-12 object-cover rounded" />
                     <div className="flex-1">
-                      <p className="font-medium text-sm">{item.product?.name}</p>
-                      <p className="text-xs text-gray-500">{item.product?.weight} × {item.qty}</p>
+                      <p className="font-medium text-sm">{item.product.name}</p>
+                      <p className="text-xs text-gray-500">{item.product.weight} × {item.qty}</p>
                     </div>
-                    <p className="font-semibold text-sm">₹{(item.product?.offerPrice ?? 0) * (item.qty ?? 1)}</p>
+                    <p className="font-semibold text-sm">₹{item.product.offerPrice * item.qty}</p>
                   </div>
                 ))}
               </div>

@@ -1,33 +1,61 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/image.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<!-- Security Meta Tags -->
 
-    <!-- SEO -->
-    <title>Roots of Araku - Premium Coffee from the Hills</title>
-    <meta name="description" content="Premium coffee sourced directly from the lush hills of Araku Valley. Experience the finest organic coffee with rich flavor and aroma." />
-    <meta name="theme-color" content="#6B1A1A" />
+<!-- Enable XSS protection -->
+<meta http-equiv="X-XSS-Protection" content="1; mode=block" />
 
-    <!-- Open Graph -->
-    <meta property="og:type" content="website" />
-    <meta property="og:title" content="Roots of Araku - Premium Coffee" />
-    <meta property="og:description" content="Premium coffee sourced directly from the lush hills of Araku Valley." />
-    <meta property="og:image" content="/image.png" />
+<!-- Prevent MIME type sniffing -->
+<meta http-equiv="X-Content-Type-Options" content="nosniff" />
 
-    <!-- Security Meta Tags -->
-    <meta http-equiv="X-XSS-Protection" content="1; mode=block" />
-    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
-    <meta name="referrer" content="strict-origin-when-cross-origin" />
+<!-- Referrer policy -->
+<meta name="referrer" content="strict-origin-when-cross-origin" />
 
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
+<!-- Content Security Policy -->
+<meta http-equiv="Content-Security-Policy" content="
+default-src 'self';
+
+script-src 'self' 'unsafe-inline' 'unsafe-eval'
+https://checkout.razorpay.com
+https://cdn.jsdelivr.net
+https://www.googletagmanager.com
+https://www.google-analytics.com;
+
+style-src 'self' 'unsafe-inline'
+https://fonts.googleapis.com;
+
+img-src 'self' data: blob: https:;
+
+font-src 'self'
+https://fonts.gstatic.com;
+
+connect-src 'self'
+https://*.supabase.co
+https://*.firebaseio.com
+https://firestore.googleapis.com
+https://firebase.googleapis.com
+https://firebaseinstallations.googleapis.com
+https://identitytoolkit.googleapis.com
+https://securetoken.googleapis.com
+https://www.googleapis.com
+https://www.google-analytics.com
+https://region1.google-analytics.com
+https://checkout.razorpay.com;
+
+frame-src 'self'
+https://checkout.razorpay.com
+https://razorpay.com
+https://accounts.google.com;
+
+object-src 'none';
+base-uri 'self';
+form-action 'self';
+upgrade-insecure-requests;
+" />
+
+<!-- Preconnect to external domains -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="preconnect" href="https://checkout.razorpay.com" />
+<link rel="preconnect" href="https://firebase.googleapis.com" />
+<link rel="preconnect" href="https://firestore.googleapis.com" />
+<link rel="preconnect" href="https://identitytoolkit.googleapis.com" />
+<link rel="preconnect" href="https://securetoken.googleapis.com" />

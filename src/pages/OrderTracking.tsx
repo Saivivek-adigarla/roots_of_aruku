@@ -89,7 +89,6 @@ export default function OrderTracking() {
       setReordering(true);
       let hasProduct = false;
       for (const item of order.order_items) {
-        if (!item.product_id) continue;
         const productRef = doc(db, 'products', item.product_id);
         const productSnap = await getDoc(productRef);
 
@@ -201,7 +200,7 @@ export default function OrderTracking() {
                 <Package size={18} className="text-maroon-700" /> Order Items
               </h4>
               <div className="space-y-3 max-h-64 overflow-y-auto">
-                {items.map((item, idx: number) => (
+                {items.map((item: Order['order_items'][number], idx: number) => (
                   <div key={idx} className="flex items-center gap-3 bg-gray-50 rounded-lg p-3">
                     <div className="w-14 h-14 bg-gray-200 rounded flex-shrink-0">
                       {item.product?.images?.[0] && (
@@ -218,7 +217,7 @@ export default function OrderTracking() {
                         {item.product?.weight || item.weight} x {item.quantity || item.qty}
                       </p>
                     </div>
-                    <p className="font-semibold text-sm">₹{item.total_price || (item.product?.offerPrice ?? 0) * (item.qty ?? item.quantity ?? 1)}</p>
+                    <p className="font-semibold text-sm">₹{(item.total_price || item.product?.offerPrice * item.qty) / 1}</p>
                   </div>
                 ))}
               </div>
@@ -229,12 +228,12 @@ export default function OrderTracking() {
             <div className="flex justify-between items-start mb-4">
               <div>
                 <p className="text-sm text-gray-600">Total Amount</p>
-                <p className="text-2xl font-bold text-maroon-700">₹{(order.total_amount ?? order.total ?? 0) + (order.delivery_charge || 0)}</p>
+                <p className="text-2xl font-bold text-maroon-700">₹{order.total_amount + (order.delivery_charge || 0)}</p>
               </div>
               <div className="text-right">
                 <p className="text-sm text-gray-500">
                   <Calendar size={14} className="inline mr-1" />
-                  {new Date(order.created_at ?? order.createdAt).toLocaleDateString('en-IN', {
+                  {new Date(order.created_at).toLocaleDateString('en-IN', {
                     day: 'numeric',
                     month: 'short',
                     year: 'numeric',
